@@ -1,4 +1,3 @@
-"""Dockerfile for backend."""
 
 FROM python:3.11-slim
 
