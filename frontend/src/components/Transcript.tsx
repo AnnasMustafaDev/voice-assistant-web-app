@@ -67,7 +67,7 @@ interface TranscriptEntryProps {
   agentState: string;
 }
 
-const TranscriptEntry: React.FC<TranscriptEntryProps> = ({ entry, agentState }) => {
+const TranscriptEntry: React.FC<TranscriptEntryProps> = ({ entry }) => {
   const isUser = entry.type === 'user';
 
   return (
@@ -88,13 +88,11 @@ const TranscriptEntry: React.FC<TranscriptEntryProps> = ({ entry, agentState }) 
               ? 'bg-neon-300 bg-opacity-15 text-neon-100 rounded-br-none'
               : 'bg-electric-300 bg-opacity-15 text-electric-100 rounded-bl-none'
           }
-```          ${!item.isFinal ? 'italic opacity-75' : 'font-normal'}
         `}
       >
-        <p>{item.text}</p>
-        <p className={`text-xs mt-1 ${isUser ? 'text-purple-700' : 'text-slate-600'}`}>
+        <p>{entry.text}</p>
+        <p className={`text-xs mt-1 ${isUser ? 'text-neon-300 opacity-70' : 'text-electric-300 opacity-70'}`}>
           {isUser ? 'You' : 'Agent'}
-          {!item.isFinal && ' (typing...)'}
         </p>
       </div>
     </motion.div>

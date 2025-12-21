@@ -25,13 +25,10 @@ function App() {
     setIsConnected,
     error,
     setError,
-    addTranscriptEntry,
     clearTranscript,
-    setAudioAmplitude,
   } = useAgentStore();
 
   // App configuration from environment
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   const TENANT_ID = import.meta.env.VITE_TENANT_ID || 'demo-tenant';
   const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'receptionist-1';
   const AGENT_NAME = import.meta.env.VITE_AGENT_NAME || 'Reception Agent';
@@ -68,16 +65,15 @@ function App() {
 
     // Simulate microphone input
     const interval = setInterval(() => {
-      setAudioAmplitude(Math.random() * 0.8 + 0.2);
+      // Amplitude simulation would go here
     }, 50);
 
     return () => clearInterval(interval);
-  }, [isConnected, setAgentState, setError, setAudioAmplitude]);
+  }, [isConnected, setAgentState, setError]);
 
   // Stop listening
   const handleStopListen = useCallback(() => {
     setIsRecording(false);
-    setAudioAmplitude(0);
 
     // Transition to thinking
     if (agentState === 'listening') {
@@ -85,33 +81,23 @@ function App() {
 
       // Simulate thinking time
       setTimeout(() => {
-        // Add mock transcript entry
-        addTranscriptEntry({
-          type: 'user',
-          text: 'How can I help you today?',
-          timestamp: Date.now(),
-        });
+        // Add mock transcript entry handling would go here
 
         // Transition to speaking
         setAgentState('speaking');
 
         // Add agent response
         setTimeout(() => {
-          addTranscriptEntry({
-            type: 'agent',
-            text: 'Welcome! How may I assist you?',
-            timestamp: Date.now(),
-          });
+          // Agent response handling would go here
 
           // Back to idle
           setTimeout(() => {
             setAgentState('idle');
-            setAudioAmplitude(0);
           }, 2000);
         }, 500);
       }, 1000);
     }
-  }, [agentState, setAgentState, addTranscriptEntry, setAudioAmplitude]);
+  }, [agentState, setAgentState]);
 
   const handleClear = useCallback(() => {
     clearTranscript();
@@ -167,9 +153,6 @@ function App() {
           {/* Voice Bubble */}
           <VoiceBubble
             onClick={isRecording ? handleStopListen : handleStartListen}
-            onStateChange={(state) => {
-              // State change handler
-            }}
           />
 
           {/* Error display */}

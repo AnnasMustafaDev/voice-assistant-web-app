@@ -42,23 +42,23 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
   const bubbleVariants = {
     idle: {
       scale: [1, 1.05, 1],
-      transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 3, repeat: Infinity, repeatType: 'reverse' as const },
     },
     listening: {
       scale: amplitudeScale,
-      transition: { duration: 0.1, ease: 'easeOut' },
+      transition: { duration: 0.1 },
     },
     thinking: {
       opacity: [0.8, 1, 0.8],
-      transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 1.5, repeat: Infinity, repeatType: 'reverse' as const },
     },
     speaking: {
       scale: amplitudeScale,
-      transition: { duration: 0.08, ease: 'easeOut' },
+      transition: { duration: 0.08 },
     },
     error: {
       x: [0, -8, 8, -8, 8, 0],
-      transition: { duration: 0.5, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 0.5 },
     },
   };
 
@@ -67,18 +67,18 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
     listening: {
       scale: [0.5, 0.8, 0.6],
       opacity: [0.7, 1, 0.7],
-      transition: { duration: 0.4, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 0.4, repeat: Infinity, repeatType: 'reverse' as const },
     },
     thinking: {
       scale: 0.7,
       rotate: 360,
       opacity: 0.9,
-      transition: { rotate: { duration: 2, repeat: Infinity }, ease: 'easeInOut' },
+      transition: { rotate: { duration: 2, repeat: Infinity, repeatType: 'loop' as const } },
     },
     speaking: {
       scale: [0.4, 0.85, 0.5, 0.8, 0.45],
       opacity: [0.7, 1, 0.7, 1, 0.7],
-      transition: { duration: 0.6, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 0.6, repeat: Infinity, repeatType: 'reverse' as const },
     },
     error: { scale: 0.4, opacity: 1 },
   };
@@ -86,7 +86,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
   const glowVariants = {
     idle: {
       boxShadow: `0 0 40px ${STATE_COLORS.idle.glow}, 0 0 80px ${STATE_COLORS.idle.glow}`,
-      transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 2, repeat: Infinity, repeatType: 'reverse' as const },
     },
     listening: {
       boxShadow: [
@@ -94,7 +94,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
         `0 0 80px ${STATE_COLORS.listening.glow}`,
         `0 0 40px ${STATE_COLORS.listening.glow}`,
       ],
-      transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 1.5, repeat: Infinity, repeatType: 'reverse' as const },
     },
     thinking: {
       boxShadow: [
@@ -102,7 +102,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
         `0 0 100px ${STATE_COLORS.thinking.glow}`,
         `0 0 50px ${STATE_COLORS.thinking.glow}`,
       ],
-      transition: { duration: 1, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 1, repeat: Infinity, repeatType: 'reverse' as const },
     },
     speaking: {
       boxShadow: [
@@ -110,7 +110,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
         `0 0 120px ${STATE_COLORS.speaking.glow}`,
         `0 0 60px ${STATE_COLORS.speaking.glow}`,
       ],
-      transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 0.8, repeat: Infinity, repeatType: 'reverse' as const },
     },
     error: {
       boxShadow: [
@@ -118,7 +118,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
         `0 0 80px ${STATE_COLORS.error.glow}`,
         `0 0 40px ${STATE_COLORS.error.glow}`,
       ],
-      transition: { duration: 0.6, repeat: Infinity, ease: 'easeInOut' },
+      transition: { duration: 0.6, repeat: Infinity, repeatType: 'reverse' as const },
     },
   };
 
@@ -217,7 +217,7 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick
         <ParticleField state={agentState} />
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes shimmer {
           0% {
             background-position: -200% center;
@@ -255,16 +255,4 @@ const ParticleField: React.FC<{ state: AgentState }> = ({ state }) => {
       ))}
     </div>
   );
-};/**
- * Get human-readable status text
- */
-function getStatusText(state: AgentState): string {
-  const statusMap: Record<AgentState, string> = {
-    idle: 'Ready to listen',
-    listening: 'Listening...',
-    thinking: 'Thinking...',
-    speaking: 'Speaking...',
-    error: 'Error occurred',
-  };
-  return statusMap[state];
-}
+};

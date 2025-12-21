@@ -7,6 +7,7 @@ interface AgentStore {
   transcript: TranscriptItem[];
   isConnected: boolean;
   error: string | null;
+  audioAmplitude: number;
   microphoneAmplitude: number;
   isMicrophoneActive: boolean;
   currentAgent: {
@@ -32,6 +33,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   transcript: [],
   isConnected: false,
   error: null,
+  audioAmplitude: 0,
   microphoneAmplitude: 0,
   isMicrophoneActive: false,
   currentAgent: null,
@@ -45,7 +47,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   clearTranscript: () => set({ transcript: [] }),
   setIsConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),
-  setMicrophoneAmplitude: (amplitude) => set({ microphoneAmplitude: amplitude }),
+  setMicrophoneAmplitude: (amplitude) => set({ audioAmplitude: amplitude, microphoneAmplitude: amplitude }),
   setIsMicrophoneActive: (active) => set({ isMicrophoneActive: active }),
   setCurrentAgent: (agent) => set({ currentAgent: agent }),
 }));

@@ -11,7 +11,7 @@ import { Transcript } from './components/Transcript';
 import { ControlDeck } from './components/ControlDeck';
 import { ChatWindow } from './components/ChatWindow';
 import { useAgentStore } from './store/agentStore';
-import './styles/index.css';
+import './index.css';
 
 function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -31,7 +31,6 @@ function App() {
   } = useAgentStore();
 
   // App configuration from environment
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   const TENANT_ID = import.meta.env.VITE_TENANT_ID || 'demo-tenant';
   const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'receptionist-1';
   const AGENT_NAME = import.meta.env.VITE_AGENT_NAME || 'Reception Agent';
@@ -171,9 +170,6 @@ function App() {
           {/* Voice Bubble */}
           <VoiceBubble
             onClick={isRecording ? handleStopListen : handleStartListen}
-            onStateChange={(state) => {
-              // State change handler
-            }}
           />
 
           {/* Error display */}

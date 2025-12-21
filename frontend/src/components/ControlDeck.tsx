@@ -6,7 +6,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useAgentStore } from '../store/agentStore';
-import type { AgentState } from '../types';
+
 
 interface ControlDeckProps {
   onStartListen: () => void;
@@ -19,7 +19,7 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
   onStartListen,
   onStopListen,
   onClear,
-  isListening,
+
 }) => {
   const agentState = useAgentStore((state) => state.agentState);
   const isConnected = useAgentStore((state) => state.isConnected);

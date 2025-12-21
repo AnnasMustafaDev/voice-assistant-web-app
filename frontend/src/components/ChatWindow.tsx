@@ -80,19 +80,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onToggle }) => {
               transcript.map((entry, idx) => (
                 <motion.div
                   key={idx}
-                  initial={{ opacity: 0, x: entry.type === 'user' ? 20 : -20 }}
+                  initial={{ opacity: 0, x: entry.role === 'user' ? 20 : -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2 }}
                   className={`
                     flex gap-2 mb-3
-                    ${entry.type === 'user' ? 'justify-end' : 'justify-start'}
+                    ${entry.role === 'user' ? 'justify-end' : 'justify-start'}
                   `}
                 >
                   <div
                     className={`
                       max-w-xs px-4 py-2 rounded-lg
                       ${
-                        entry.type === 'user'
+                        entry.role === 'user'
                           ? 'bg-neon-300 bg-opacity-20 text-neon-100 border border-neon-300 border-opacity-30'
                           : 'bg-electric-300 bg-opacity-20 text-electric-100 border border-electric-300 border-opacity-30'
                       }
@@ -101,7 +101,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onToggle }) => {
                     `}
                   >
                     <p className="text-xs font-medium opacity-70 mb-1">
-                      {entry.type === 'user' ? 'You' : 'Agent'}
+                      {entry.role === 'user' ? 'You' : 'Agent'}
                     </p>
                     <p>{entry.text}</p>
                   </div>
