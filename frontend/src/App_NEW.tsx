@@ -25,9 +25,9 @@ function App() {
     setIsConnected,
     error,
     setError,
-    addTranscriptItem,
+    addTranscriptEntry,
     clearTranscript,
-    setMicrophoneAmplitude,
+    setAudioAmplitude,
   } = useAgentStore();
 
   // App configuration from environment
@@ -68,16 +68,16 @@ function App() {
 
     // Simulate microphone input
     const interval = setInterval(() => {
-      setMicrophoneAmplitude(Math.random() * 0.8 + 0.2);
+      setAudioAmplitude(Math.random() * 0.8 + 0.2);
     }, 50);
 
     return () => clearInterval(interval);
-  }, [isConnected, setAgentState, setError, setMicrophoneAmplitude]);
+  }, [isConnected, setAgentState, setError, setAudioAmplitude]);
 
   // Stop listening
   const handleStopListen = useCallback(() => {
     setIsRecording(false);
-    setMicrophoneAmplitude(0);
+    setAudioAmplitude(0);
 
     // Transition to thinking
     if (agentState === 'listening') {
@@ -86,12 +86,10 @@ function App() {
       // Simulate thinking time
       setTimeout(() => {
         // Add mock transcript entry
-        addTranscriptItem({
-          id: `user-${Date.now()}`,
-          role: 'user',
+        addTranscriptEntry({
+          type: 'user',
           text: 'How can I help you today?',
           timestamp: Date.now(),
-          isFinal: true,
         });
 
         // Transition to speaking
@@ -99,23 +97,21 @@ function App() {
 
         // Add agent response
         setTimeout(() => {
-          addTranscriptItem({
-            id: `agent-${Date.now()}`,
-            role: 'agent',
+          addTranscriptEntry({
+            type: 'agent',
             text: 'Welcome! How may I assist you?',
             timestamp: Date.now(),
-            isFinal: true,
           });
 
           // Back to idle
           setTimeout(() => {
             setAgentState('idle');
-            setMicrophoneAmplitude(0);
+            setAudioAmplitude(0);
           }, 2000);
         }, 500);
       }, 1000);
     }
-  }, [agentState, setAgentState, addTranscriptItem, setMicrophoneAmplitude]);
+  }, [agentState, setAgentState, addTranscriptEntry, setAudioAmplitude]);
 
   const handleClear = useCallback(() => {
     clearTranscript();
