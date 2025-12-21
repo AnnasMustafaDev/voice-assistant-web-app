@@ -1,11 +1,12 @@
 /**
- * VoiceBubble: Core voice interaction component with state-based animations
+ * NeuralSphere: Advanced voice bubble with glassmorphism and 5-state animations
+ * States: idle (breathing), listening (amplitude-based), thinking (shimmer), 
+ * speaking (pulsing), error (shake)
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useAgentStore } from '../store/agentStore';
-import { voiceBubbleVariants, innerCircleVariants } from '../utils/animations';
 import type { AgentState } from '../types';
 
 interface VoiceBubbleProps {
@@ -13,223 +14,248 @@ interface VoiceBubbleProps {
   onClick?: () => void;
 }
 
+// State-specific color mappings
+const STATE_COLORS = {
+  idle: { bg: 'from-void-500 to-void-700', glow: 'rgba(46, 16, 101, 0.5)' },
+  listening: { bg: 'from-neon-300 to-neon-400', glow: 'rgba(6, 182, 212, 0.6)' },
+  thinking: { bg: 'from-neural-400 to-neural-500', glow: 'rgba(217, 70, 239, 0.5)' },
+  speaking: { bg: 'from-electric-300 to-electric-400', glow: 'rgba(217, 70, 239, 0.8)' },
+  error: { bg: 'from-red-500 to-red-600', glow: 'rgba(239, 68, 68, 0.7)' },
+};
+
 export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick }) => {
   const agentState = useAgentStore((state) => state.agentState);
-  const microphoneAmplitude = useAgentStore((state) => state.microphoneAmplitude);
-  const error = useAgentStore((state) => state.error);
+  const audioAmplitude = useAgentStore((state) => state.audioAmplitude);
 
   useEffect(() => {
     onStateChange?.(agentState);
   }, [agentState, onStateChange]);
 
-  // Calculate dynamic scale based on microphone amplitude during listening
-  const amplitudeScale = agentState === 'listening' ? 1 + microphoneAmplitude * 0.15 : 1;
+  // Calculate dynamic scale based on audio amplitude
+  const amplitudeScale = useMemo(() => {
+    if (agentState === 'listening') return 1 + audioAmplitude * 0.25;
+    if (agentState === 'speaking') return 1 + audioAmplitude * 0.3;
+    return 1;
+  }, [audioAmplitude, agentState]);
+
+  // Animation variants for each state
+  const bubbleVariants = {
+    idle: {
+      scale: [1, 1.05, 1],
+      transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
+    },
+    listening: {
+      scale: amplitudeScale,
+      transition: { duration: 0.1, ease: 'easeOut' },
+    },
+    thinking: {
+      opacity: [0.8, 1, 0.8],
+      transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+    },
+    speaking: {
+      scale: amplitudeScale,
+      transition: { duration: 0.08, ease: 'easeOut' },
+    },
+    error: {
+      x: [0, -8, 8, -8, 8, 0],
+      transition: { duration: 0.5, repeat: Infinity, ease: 'easeInOut' },
+    },
+  };
+
+  const innerCircleVariants = {
+    idle: { scale: 0.4, opacity: 0.6 },
+    listening: {
+      scale: [0.5, 0.8, 0.6],
+      opacity: [0.7, 1, 0.7],
+      transition: { duration: 0.4, repeat: Infinity, ease: 'easeInOut' },
+    },
+    thinking: {
+      scale: 0.7,
+      rotate: 360,
+      opacity: 0.9,
+      transition: { rotate: { duration: 2, repeat: Infinity }, ease: 'easeInOut' },
+    },
+    speaking: {
+      scale: [0.4, 0.85, 0.5, 0.8, 0.45],
+      opacity: [0.7, 1, 0.7, 1, 0.7],
+      transition: { duration: 0.6, repeat: Infinity, ease: 'easeInOut' },
+    },
+    error: { scale: 0.4, opacity: 1 },
+  };
+
+  const glowVariants = {
+    idle: {
+      boxShadow: `0 0 40px ${STATE_COLORS.idle.glow}, 0 0 80px ${STATE_COLORS.idle.glow}`,
+      transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+    },
+    listening: {
+      boxShadow: [
+        `0 0 40px ${STATE_COLORS.listening.glow}`,
+        `0 0 80px ${STATE_COLORS.listening.glow}`,
+        `0 0 40px ${STATE_COLORS.listening.glow}`,
+      ],
+      transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
+    },
+    thinking: {
+      boxShadow: [
+        `0 0 50px ${STATE_COLORS.thinking.glow}`,
+        `0 0 100px ${STATE_COLORS.thinking.glow}`,
+        `0 0 50px ${STATE_COLORS.thinking.glow}`,
+      ],
+      transition: { duration: 1, repeat: Infinity, ease: 'easeInOut' },
+    },
+    speaking: {
+      boxShadow: [
+        `0 0 60px ${STATE_COLORS.speaking.glow}`,
+        `0 0 120px ${STATE_COLORS.speaking.glow}`,
+        `0 0 60px ${STATE_COLORS.speaking.glow}`,
+      ],
+      transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' },
+    },
+    error: {
+      boxShadow: [
+        `0 0 40px ${STATE_COLORS.error.glow}`,
+        `0 0 80px ${STATE_COLORS.error.glow}`,
+        `0 0 40px ${STATE_COLORS.error.glow}`,
+      ],
+      transition: { duration: 0.6, repeat: Infinity, ease: 'easeInOut' },
+    },
+  };
+
+  const colors = STATE_COLORS[agentState];
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <motion.button
-        variants={voiceBubbleVariants}
+      {/* Outer glow layer */}
+      <motion.div
+        variants={glowVariants}
         initial="idle"
-        animate={agentState === 'error' ? 'error' : agentState}
+        animate={agentState}
+        className="absolute w-48 h-48 rounded-full"
+        aria-hidden="true"
+      />
+
+      {/* Main bubble container with glassmorphism */}
+      <motion.button
+        variants={bubbleVariants}
+        initial="idle"
+        animate={agentState}
         onClick={onClick}
         className={`
           relative w-40 h-40 rounded-full flex items-center justify-center
-          transition-colors duration-200
-          ${
-            agentState === 'error'
-              ? 'bg-gradient-to-br from-red-500 to-red-600'
-              : 'bg-gradient-to-br from-purple-500 to-purple-700'
-          }
-          hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2
+          bg-gradient-to-br ${colors.bg}
+          backdrop-blur-xl
+          border border-white border-opacity-20
+          shadow-2xl
+          hover:shadow-2xl hover:border-opacity-30
+          focus:outline-none focus:ring-2 focus:ring-offset-2
+          focus:ring-offset-void-900 focus:ring-neon-300
+          transition-all duration-200
           disabled:opacity-50 disabled:cursor-not-allowed
+          cursor-pointer
+          group
         `}
-        aria-label={`Voice bubble - ${agentState}`}
+        aria-label={`Neural voice sphere - ${agentState}`}
+        type="button"
       >
-        {/* Outer glow effect */}
-        <div
-          className={`
-            absolute inset-0 rounded-full blur-2xl opacity-30
-            ${agentState === 'error' ? 'bg-red-500' : 'bg-purple-500'}
-            transition-all duration-200
-          `}
-        />
-
-        {/* Inner animated circle */}
+        {/* Inner animated circle - represents neural activity */}
         <motion.div
           variants={innerCircleVariants}
           initial="idle"
-          animate={agentState === 'error' ? 'error' : agentState}
-          style={{ scale: amplitudeScale }}
+          animate={agentState}
           className={`
-            relative w-20 h-20 rounded-full
-            ${
-              agentState === 'error'
-                ? 'bg-red-300'
-                : 'bg-white'
-            }
+            absolute inset-0 m-auto
+            rounded-full
+            ${agentState === 'thinking' ? 'border-2 border-dashed border-white border-opacity-50' : 'bg-white bg-opacity-20'}
+            pointer-events-none
           `}
-        >
-          {/* Center dot */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div
-              className={`
-                w-3 h-3 rounded-full
-                ${agentState === 'error' ? 'bg-red-600' : 'bg-purple-600'}
-              `}
-            />
-          </div>
+          style={{
+            width: '60%',
+            height: '60%',
+          }}
+        />
 
-          {/* State indicator icon */}
-          <StateIcon state={agentState} />
-        </motion.div>
+        {/* Shimmer effect for thinking state */}
+        {agentState === 'thinking' && (
+          <div
+            className="absolute inset-0 rounded-full overflow-hidden pointer-events-none"
+            style={{
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+              backgroundSize: '200% 200%',
+              animation: 'shimmer 2s infinite',
+            }}
+          />
+        )}
 
-        {/* Ripple effect for listening state */}
-        {agentState === 'listening' && <ListeningRipple />}
+        {/* Status indicator dot */}
+        <div
+          className={`
+            absolute top-2 right-2 w-3 h-3 rounded-full
+            ${
+              agentState === 'idle'
+                ? 'bg-neon-300 animate-pulse'
+                : agentState === 'listening'
+                  ? 'bg-neon-300 animate-bounce'
+                  : agentState === 'thinking'
+                    ? 'bg-neural-300 animate-spin'
+                    : agentState === 'speaking'
+                      ? 'bg-electric-300 animate-pulse'
+                      : 'bg-red-400 animate-pulse'
+            }
+            shadow-lg
+          `}
+        />
+
+        {/* Center label - shows state in lowercase */}
+        <span className="text-xs font-semibold text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+          {agentState.toUpperCase().slice(0, 3)}
+        </span>
       </motion.button>
 
-      {/* Status text */}
-      <motion.p
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.3 }}
-        className={`
-          mt-6 text-sm font-medium uppercase tracking-wider
-          ${
-            agentState === 'error'
-              ? 'text-red-600'
-              : 'text-slate-700'
-          }
-        `}
-      >
-        {getStatusText(agentState)}
-      </motion.p>
-
-      {/* Error message */}
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-3 text-center text-sm text-red-600 max-w-xs"
-        >
-          {error}
-        </motion.div>
+      {/* Particle effects around bubble */}
+      {(agentState === 'listening' || agentState === 'speaking') && (
+        <ParticleField state={agentState} />
       )}
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -200% center;
+          }
+          100% {
+            background-position: 200% center;
+          }
+        }
+      `}</style>
     </div>
   );
 };
 
-/**
- * State-specific icon component
- */
-const StateIcon: React.FC<{ state: AgentState }> = ({ state }) => {
-  switch (state) {
-    case 'listening':
-      return (
+// Particle field component for dynamic visualization
+const ParticleField: React.FC<{ state: AgentState }> = ({ state }) => {
+  const isListening = state === 'listening';
+  
+  return (
+    <div className="absolute w-56 h-56 rounded-full pointer-events-none">
+      {Array.from({ length: 8 }).map((_, i) => (
         <motion.div
-          animate={{ scale: [0.8, 1.2, 0.8] }}
-          transition={{ duration: 0.8, repeat: Infinity }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <svg
-            className="w-8 h-8 text-purple-700"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 15c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6c0 1.66 1.34 3 3 3z" />
-          </svg>
-        </motion.div>
-      );
-
-    case 'thinking':
-      return (
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <svg
-            className="w-8 h-8 text-purple-700"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </motion.div>
-      );
-
-    case 'speaking':
-      return (
-        <motion.div
-          animate={{ scale: [0.9, 1.1, 0.9] }}
-          transition={{ duration: 0.6, repeat: Infinity }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <svg
-            className="w-8 h-8 text-purple-700"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 1C6.48 1 2 5.48 2 11s4.48 10 10 10 10-4.48 10-10S17.52 1 12 1zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 7 15.5 7 14 7.67 14 8.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 7 8.5 7 7 7.67 7 8.5 7.67 10 8.5 10zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
-          </svg>
-        </motion.div>
-      );
-
-    case 'error':
-      return (
-        <svg
-          className="w-8 h-8 text-red-700"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-        </svg>
-      );
-
-    case 'idle':
-    default:
-      return (
-        <svg
-          className="w-8 h-8 text-purple-700"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-        </svg>
-      );
-  }
-};
-
-/**
- * Listening state ripple effect
- */
-const ListeningRipple: React.FC = () => (
-  <>
-    {[0, 1, 2].map((i) => (
-      <motion.div
-        key={i}
-        animate={{
-          scale: [1, 2.5],
-          opacity: [0.8, 0],
-        }}
-        transition={{
-          duration: 0.8,
-          delay: i * 0.15,
-          repeat: Infinity,
-        }}
-        className="absolute inset-0 rounded-full border-2 border-purple-400"
-      />
-    ))}
-  </>
-);
-
-/**
+          key={i}
+          className="absolute w-1 h-1 rounded-full bg-white"
+          animate={{
+            x: [0, Math.cos((i / 8) * Math.PI * 2) * 50],
+            y: [0, Math.sin((i / 8) * Math.PI * 2) * 50],
+            opacity: [0.5, 0, 0.5],
+          }}
+          transition={{
+            duration: isListening ? 1.5 : 0.8,
+            repeat: Infinity,
+            delay: i * 0.1,
+          }}
+        />
+      ))}
+    </div>
+  );
+};/**
  * Get human-readable status text
  */
 function getStatusText(state: AgentState): string {

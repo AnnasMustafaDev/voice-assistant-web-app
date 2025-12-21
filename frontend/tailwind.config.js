@@ -7,6 +7,58 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Modern futuristic palette
+        neural: {
+          50: '#faf5ff',
+          100: '#f5ebff',
+          200: '#e9d5ff',
+          300: '#d946ef',
+          400: '#c026d3',
+          500: '#a21caf',
+          600: '#9333ea',
+          700: '#7e22ce',
+          800: '#6b21a8',
+          900: '#581c87',
+        },
+        // Deep violet to black gradient base
+        void: {
+          50: '#f3e8ff',
+          100: '#ede9fe',
+          200: '#ddd6fe',
+          300: '#c4b5fd',
+          400: '#a78bfa',
+          500: '#2E1065', // Primary brand violet
+          600: '#220b63',
+          700: '#1a0847',
+          800: '#140635',
+          900: '#020617', // Deep black
+        },
+        // Neon cyan accent
+        neon: {
+          50: '#cffafe',
+          100: '#a5f3fc',
+          200: '#67e8f9',
+          300: '#06b6d4', // Primary cyan
+          400: '#0891b2',
+          500: '#0e7490',
+          600: '#155e75',
+          700: '#164e63',
+          800: '#1e293b',
+          900: '#0f172a',
+        },
+        // Electric purple accent
+        electric: {
+          50: '#faf5ff',
+          100: '#f3e8ff',
+          200: '#e9d5ff',
+          300: '#d946ef', // Primary electric purple
+          400: '#c026d3',
+          500: '#a21caf',
+          600: '#9333ea',
+          700: '#7e22ce',
+          800: '#6b21a8',
+          900: '#581c87',
+        },
         primary: {
           50: '#f8f7ff',
           100: '#f0edff',
