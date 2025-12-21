@@ -13,7 +13,7 @@ export const voiceBubbleVariants = {
     opacity: 1,
     boxShadow: '0 0 40px rgba(159, 122, 255, 0.6)',
     transition: {
-      scale: { duration: 0.4, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 0.4, repeat: Infinity, repeatType: 'loop' as const },
       opacity: { duration: 0.3 },
       boxShadow: { duration: 0.3 },
     },
@@ -32,7 +32,7 @@ export const voiceBubbleVariants = {
     opacity: 1,
     boxShadow: '0 0 50px rgba(159, 122, 255, 0.7)',
     transition: {
-      scale: { duration: 0.5, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 0.5, repeat: Infinity, repeatType: 'loop' as const },
       opacity: { duration: 0.3 },
       boxShadow: { duration: 0.3 },
     },
@@ -58,7 +58,7 @@ export const innerCircleVariants = {
     transition: {
       duration: 0.4,
       repeat: Infinity,
-      ease: 'easeInOut',
+      repeatType: 'loop' as const,
     },
   },
   thinking: {
@@ -66,7 +66,7 @@ export const innerCircleVariants = {
     opacity: 0.8,
     rotate: 360,
     transition: {
-      rotate: { duration: 2, repeat: Infinity, ease: 'linear' },
+      rotate: { duration: 2, repeat: Infinity, repeatType: 'loop' as const },
       scale: { duration: 0.2 },
       opacity: { duration: 0.2 },
     },
@@ -77,7 +77,7 @@ export const innerCircleVariants = {
     transition: {
       duration: 0.6,
       repeat: Infinity,
-      ease: 'easeInOut',
+      repeatType: 'loop' as const,
     },
   },
   error: {
@@ -100,7 +100,6 @@ export const transcriptVariants = {
     y: 0,
     transition: {
       duration: 0.3,
-      ease: 'easeOut',
     },
   },
   exit: {
@@ -127,6 +126,6 @@ export const itemVariants = {
   animate: {
     opacity: 1,
     x: 0,
-    transition: { ease: 'easeOut', duration: 0.3 },
+    transition: { duration: 0.3 },
   },
 };

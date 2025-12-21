@@ -47,10 +47,16 @@ export const Transcript: React.FC = () => {
 };
 
 /**
- * Individual transcript item with role-based styling
+ * TranscriptItem: Individual transcript item with role-based styling
  */
 interface TranscriptItemProps {
-  item: ReturnType<typeof useAgentStore>['transcript'][number];
+  item: {
+    id: string;
+    role: 'user' | 'agent';
+    text: string;
+    timestamp: number;
+    isFinal: boolean;
+  };
 }
 
 const TranscriptItem: React.FC<TranscriptItemProps> = ({ item }) => {

@@ -5,11 +5,7 @@
 export async function encodeAudioToWAV(audioBuffer: AudioBuffer): Promise<Blob> {
   const numberOfChannels = audioBuffer.numberOfChannels;
   const sampleRate = audioBuffer.sampleRate;
-  const format = 1; // PCM
   const bitDepth = 16;
-
-  const bytesPerSample = bitDepth / 8;
-  const blockAlign = numberOfChannels * bytesPerSample;
 
   const channelData = [];
   for (let i = 0; i < numberOfChannels; i++) {

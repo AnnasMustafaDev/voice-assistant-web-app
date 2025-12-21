@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { VoiceBubble } from './components/VoiceBubble';
 import { Transcript } from './components/Transcript';
@@ -27,7 +27,6 @@ const APP_CONFIG: AppConfig = {
 function App() {
   const [isListening, setIsListening] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   const {
     agentState,
@@ -87,9 +86,7 @@ function App() {
       setIsListening(true);
       setAgentState('listening');
       setError(null);
-      setAudioChunks([]);
 
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
