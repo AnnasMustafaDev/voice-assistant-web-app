@@ -1,0 +1,41 @@
+"""Docker Compose configuration for local development."""
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: reception_db
+    environment:
+      POSTGRES_USER: reception_user
+      POSTGRES_PASSWORD: reception_password
+      POSTGRES_DB: reception_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reception_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: reception_backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://reception_user:reception_password@postgres:5432/reception_agent
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: python main.py
+
+volumes:
+  postgres_data:
