@@ -3,7 +3,7 @@
  * Protocol: Only send complete utterances, not streaming chunks
  */
 
-import type { WebSocketMessage, TranscriptItem } from '../types';
+import type { ServerMessage, TranscriptItem } from '../types';
 import { useAgentStore } from '../store/agentStore';
 import { playAudio } from './audio';
 
@@ -26,7 +26,7 @@ function checkRateLimit(): boolean {
   return true;
 }
 
-export function handleWebSocketMessage(message: WebSocketMessage): void {
+export function handleWebSocketMessage(message: ServerMessage): void {
   const { addTranscriptItem, setError, setAgentState } = useAgentStore.getState();
 
   switch (message.event) {
@@ -101,7 +101,8 @@ export function handleWebSocketMessage(message: WebSocketMessage): void {
       break;
 
     default:
-      console.warn('[WS] Unknown message type:', message.event);
+      const _exhaustive: never = message;
+      console.warn('[WS] Unknown message type:', _exhaustive);
   }
 }
 

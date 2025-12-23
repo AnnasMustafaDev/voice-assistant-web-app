@@ -6,7 +6,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '../store/agentStore';
 import { handleWebSocketMessage, sendInit, sendAudioUtterance } from '../utils/websocket';
-import type { WebSocketMessage } from '../types';
 
 interface UseWebSocketOptions {
   url: string;
@@ -77,8 +76,11 @@ export function useWebSocket({
 
       wsRef.current.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-          handleWebSocketMessage(message);
+          const message = JSON.parse(event.data) as any;
+          // Only pass server messages to the handler (they have 'event' property)
+          if (message.event) {
+            handleWebSocketMessage(message);
+          }
         } catch (error) {
           console.error('[WS] Failed to parse message:', error);
         }

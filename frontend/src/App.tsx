@@ -23,8 +23,6 @@ function App() {
     agentState,
     setAgentState,
     setCurrentAgent,
-    isConnected,
-    error,
     setError,
     clearTranscript,
     isListening,
