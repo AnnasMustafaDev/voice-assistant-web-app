@@ -4,10 +4,11 @@ import type { Easing } from 'framer-motion';
 import { useAgentStore } from '../store/agentStore';
 
 interface VoiceBubbleProps {
+  isActive?: boolean;
   onClick?: () => void;
 }
 
-export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onClick }) => {
+export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ isActive = false, onClick }) => {
   const agentState = useAgentStore((state) => state.agentState);
 
   // Animation variants for different states
@@ -79,7 +80,13 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onClick }) => {
   };
 
   return (
-    <div className="relative flex justify-center items-center h-64 w-64" onClick={onClick}>
+    <div 
+      className={`relative flex justify-center items-center h-64 w-64 cursor-pointer
+        ${isActive ? 'opacity-100' : 'opacity-80'}
+        transition-opacity duration-200
+      `}
+      onClick={onClick}
+    >
       {/* Outer Glow / Aura */}
       <motion.div
         animate={{

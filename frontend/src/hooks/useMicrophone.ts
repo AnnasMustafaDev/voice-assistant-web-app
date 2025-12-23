@@ -30,7 +30,6 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const resamplerRef = useRef<AudioContext | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
   // VAD state
@@ -65,10 +64,11 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
 
       // Resample to 16kHz if needed
       const currentSampleRate = audioContextRef.current?.sampleRate || 44100;
-      let finalSamples = combinedSamples;
+      let finalSamples: Float32Array = combinedSamples;
       
       if (currentSampleRate !== TARGET_SAMPLE_RATE) {
-        finalSamples = resampleAudio(combinedSamples, currentSampleRate, TARGET_SAMPLE_RATE);
+        const resampled = resampleAudio(combinedSamples, currentSampleRate, TARGET_SAMPLE_RATE);
+        finalSamples = new Float32Array(resampled);
       }
 
       // Encode to WAV

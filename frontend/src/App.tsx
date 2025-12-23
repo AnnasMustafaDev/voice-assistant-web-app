@@ -2,6 +2,7 @@
  * Main App Component: Voice AI Agent Interface
  * Central orchestration of all voice interaction features
  * Features: Neural sphere voice bubble, live transcript, expandable chat, glassmorphism UI
+ * Push-to-talk with client-side VAD
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,12 +14,10 @@ import { ChatWindow } from './components/ChatWindow';
 import { useAgentStore } from './store/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useMicrophone } from './hooks/useMicrophone';
-import { createAudioChunkMessage } from './utils/websocket';
 import './index.css';
 
 function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
 
   const {
     agentState,
@@ -28,7 +27,8 @@ function App() {
     error,
     setError,
     clearTranscript,
-    setMicrophoneAmplitude,
+    isListening,
+    setIsListening,
   } = useAgentStore();
 
   // App configuration from environment
@@ -53,70 +53,93 @@ function App() {
   }))[0];
 
   const handleConnect = useCallback(() => {
-    console.log('Connected to voice stream');
+    console.log('[App] Connected to voice stream');
   }, []);
 
   const handleDisconnect = useCallback(() => {
-    console.log('Disconnected from voice stream');
+    console.log('[App] Disconnected from voice stream');
   }, []);
 
-  // WebSocket connection
-  const { send } = useWebSocket({
+  // WebSocket connection - returns sendUtterance method
+  const { sendUtterance, isConnected: wsConnected } = useWebSocket({
     url: `${BACKEND_URL.replace('http', 'ws')}/voice/stream`,
     config: wsConfig,
     onConnect: handleConnect,
     onDisconnect: handleDisconnect
   });
 
-  // Handle audio data from microphone
-  const handleAudioData = useCallback((base64Data: string) => {
-    if (isConnected) {
-      send(createAudioChunkMessage(base64Data));
-    }
-  }, [isConnected, send]);
-
-  // Microphone hook
-  const { startMicrophone, stopMicrophone } = useMicrophone({
-    onAudioData: handleAudioData
-  });
-
-  // Start listening
-  const handleStartListen = useCallback(async () => {
-    if (!isConnected) {
-      setError('Not connected to backend');
+  // Handle complete utterance from VAD
+  const handleUtterance = useCallback((base64WavData: string, durationMs: number) => {
+    console.log(`[App] Complete utterance received: ${durationMs}ms, ${Math.round(base64WavData.length / 1024)}KB`);
+    
+    if (!wsConnected) {
+      console.warn('[App] WebSocket not connected, cannot send utterance');
+      setError('Connection lost');
       return;
     }
 
     try {
+      // Send complete utterance to backend
+      sendUtterance(base64WavData, durationMs);
+      console.log('[App] Utterance sent to backend');
+      
+      // Update state
+      setIsListening(false);
+      if (agentState === 'listening') {
+        setAgentState('thinking');
+      }
+    } catch (err) {
+      console.error('[App] Failed to send utterance:', err);
+      setError('Failed to send audio');
+    }
+  }, [wsConnected, sendUtterance, setIsListening, agentState, setAgentState, setError]);
+
+  // Microphone hook - collects chunks and finalizes utterances via VAD
+  const { startMicrophone, stopMicrophone, forceFinalize, isInitialized } = useMicrophone({
+    onUtterance: handleUtterance
+  });
+
+  // Start listening (push-to-talk down)
+  const handleStartListen = useCallback(async () => {
+    if (!wsConnected) {
+      setError('Not connected to backend');
+      console.warn('[App] Cannot start listen: WebSocket not connected');
+      return;
+    }
+
+    if (!isInitialized) {
+      setError('Microphone not initialized');
+      console.warn('[App] Cannot start listen: Microphone not initialized');
+      return;
+    }
+
+    try {
+      console.log('[App] Starting microphone capture');
       await startMicrophone();
+      setIsListening(true);
       setAgentState('listening');
-      setIsRecording(true);
       setError(null);
     } catch (err) {
-      console.error('Failed to start microphone:', err);
+      console.error('[App] Failed to start microphone:', err);
       setError('Failed to access microphone');
+      setIsListening(false);
     }
-  }, [isConnected, setAgentState, setError, startMicrophone]);
+  }, [wsConnected, isInitialized, startMicrophone, setIsListening, setAgentState, setError]);
 
-  // Stop listening
+  // Stop listening (push-to-talk up) - force finalize utterance
   const handleStopListen = useCallback(() => {
+    console.log('[App] Stopping microphone capture');
+    forceFinalize();
     stopMicrophone();
-    setIsRecording(false);
-    setMicrophoneAmplitude(0);
-    
-    // If we were listening, transition to thinking (backend will update this too)
-    if (agentState === 'listening') {
-      setAgentState('thinking');
-    }
-  }, [stopMicrophone, setMicrophoneAmplitude, agentState, setAgentState]);
-
-
+  }, [forceFinalize, stopMicrophone]);
 
   const handleClear = useCallback(() => {
+    console.log('[App] Clearing transcript');
     clearTranscript();
     setAgentState('idle');
     setError(null);
-  }, [clearTranscript, setAgentState, setError]);
+    setIsListening(false);
+  }, [clearTranscript, setAgentState, setError, setIsListening]);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -163,33 +186,22 @@ function App() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="flex-1 flex flex-col items-center justify-center w-full max-w-2xl"
         >
-          {/* Voice Bubble */}
+          {/* Voice Bubble - click to toggle listening (for alternative UI) */}
           <VoiceBubble
-            onClick={isRecording ? handleStopListen : handleStartListen}
+            isActive={isListening}
           />
-
-          {/* Error display */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-6 px-4 py-3 rounded-lg bg-red-500 bg-opacity-20 border border-red-400 border-opacity-50 text-red-200 text-sm text-center max-w-xs"
-            >
-              {error}
-            </motion.div>
-          )}
 
           {/* Transcript */}
           <div className="mt-12 md:mt-16 w-full px-4 z-40">
             <Transcript />
           </div>
 
-          {/* Control Deck */}
+          {/* Control Deck - Push-to-talk controls */}
           <ControlDeck
             onStartListen={handleStartListen}
             onStopListen={handleStopListen}
+            onForceFinalize={forceFinalize}
             onClear={handleClear}
-            isListening={isRecording}
           />
         </motion.div>
 
@@ -200,7 +212,7 @@ function App() {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="flex gap-4 items-center"
         >
-          {/* Chat button */}
+          {/* Chat history button */}
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -229,13 +241,13 @@ function App() {
           {/* Status indicator */}
           <div className={`px-3 py-2 rounded-full text-xs font-semibold
             ${
-              isConnected
+              wsConnected
                 ? 'bg-neon-300 bg-opacity-20 text-neon-200'
                 : 'bg-red-500 bg-opacity-20 text-red-200'
             }
             backdrop-blur-lg border border-white border-opacity-10
           `}>
-            {isConnected ? '● Live' : '● Offline'}
+            {wsConnected ? '● Live' : '● Offline'}
           </div>
         </motion.div>
       </div>
@@ -250,7 +262,7 @@ function App() {
         transition={{ duration: 0.8, delay: 1 }}
         className="fixed bottom-4 left-4 text-white text-opacity-40 text-xs"
       >
-        <p>Space or Click bubble to record</p>
+        <p>Hold button to record • Release to finalize</p>
       </motion.div>
     </div>
   );
