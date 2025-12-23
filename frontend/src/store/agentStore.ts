@@ -10,6 +10,7 @@ interface AgentStore {
   audioAmplitude: number;
   microphoneAmplitude: number;
   isMicrophoneActive: boolean;
+  isListening: boolean;
   currentAgent: {
     tenantId: string;
     agentId: string;
@@ -24,6 +25,7 @@ interface AgentStore {
   setError: (error: string | null) => void;
   setMicrophoneAmplitude: (amplitude: number) => void;
   setIsMicrophoneActive: (active: boolean) => void;
+  setIsListening: (listening: boolean) => void;
   setCurrentAgent: (agent: { tenantId: string; agentId: string; agentName: string } | null) => void;
 }
 
@@ -36,6 +38,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   audioAmplitude: 0,
   microphoneAmplitude: 0,
   isMicrophoneActive: false,
+  isListening: false,
   currentAgent: null,
 
   // Action implementations
@@ -62,5 +65,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setError: (error) => set({ error }),
   setMicrophoneAmplitude: (amplitude) => set({ audioAmplitude: amplitude, microphoneAmplitude: amplitude }),
   setIsMicrophoneActive: (active) => set({ isMicrophoneActive: active }),
+  setIsListening: (listening) => set({ isListening: listening }),
   setCurrentAgent: (agent) => set({ currentAgent: agent }),
 }));

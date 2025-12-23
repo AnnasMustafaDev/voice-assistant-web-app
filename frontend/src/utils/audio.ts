@@ -2,6 +2,33 @@
  * Audio utility functions for encoding/decoding and analysis
  */
 
+/**
+ * Resample audio from one sample rate to another
+ */
+export function resampleAudio(samples: Float32Array, originalRate: number, targetRate: number): Float32Array {
+  if (originalRate === targetRate) {
+    return samples;
+  }
+
+  const ratio = targetRate / originalRate;
+  const newLength = Math.round(samples.length * ratio);
+  const resampled = new Float32Array(newLength);
+
+  for (let i = 0; i < newLength; i++) {
+    const position = i / ratio;
+    const index = Math.floor(position);
+    const fraction = position - index;
+
+    if (index + 1 < samples.length) {
+      resampled[i] = samples[index] * (1 - fraction) + samples[index + 1] * fraction;
+    } else {
+      resampled[i] = samples[index];
+    }
+  }
+
+  return resampled;
+}
+
 export async function encodeAudioToWAV(audioBuffer: AudioBuffer): Promise<Blob> {
   const numberOfChannels = audioBuffer.numberOfChannels;
   const sampleRate = audioBuffer.sampleRate;
