@@ -11,6 +11,9 @@ import { Transcript } from './components/Transcript';
 import { ControlDeck } from './components/ControlDeck';
 import { ChatWindow } from './components/ChatWindow';
 import { useAgentStore } from './store/agentStore';
+import { useWebSocket } from './hooks/useWebSocket';
+import { useMicrophone } from './hooks/useMicrophone';
+import { createAudioChunkMessage } from './utils/websocket';
 import './index.css';
 
 function App() {
@@ -22,15 +25,14 @@ function App() {
     setAgentState,
     setCurrentAgent,
     isConnected,
-    setIsConnected,
     error,
     setError,
-    addTranscriptItem,
     clearTranscript,
     setMicrophoneAmplitude,
   } = useAgentStore();
 
   // App configuration from environment
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   const TENANT_ID = import.meta.env.VITE_TENANT_ID || 'demo-tenant';
   const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'receptionist-1';
   const AGENT_NAME = import.meta.env.VITE_AGENT_NAME || 'Reception Agent';
@@ -44,77 +46,71 @@ function App() {
     });
   }, [setCurrentAgent]);
 
-  // Simulate WebSocket connection
-  useEffect(() => {
-    // In production, connect to actual WebSocket
-    setIsConnected(true);
-    
-    return () => {
-      setIsConnected(false);
-    };
-  }, [setIsConnected]);
+  // Memoize WebSocket config
+  const wsConfig = useState(() => ({
+    tenantId: TENANT_ID,
+    agentId: AGENT_ID,
+  }))[0];
+
+  const handleConnect = useCallback(() => {
+    console.log('Connected to voice stream');
+  }, []);
+
+  const handleDisconnect = useCallback(() => {
+    console.log('Disconnected from voice stream');
+  }, []);
+
+  // WebSocket connection
+  const { send } = useWebSocket({
+    url: `${BACKEND_URL.replace('http', 'ws')}/voice/stream`,
+    config: wsConfig,
+    onConnect: handleConnect,
+    onDisconnect: handleDisconnect
+  });
+
+  // Handle audio data from microphone
+  const handleAudioData = useCallback((base64Data: string) => {
+    if (isConnected) {
+      send(createAudioChunkMessage(base64Data));
+    }
+  }, [isConnected, send]);
+
+  // Microphone hook
+  const { startMicrophone, stopMicrophone } = useMicrophone({
+    onAudioData: handleAudioData
+  });
 
   // Start listening
-  const handleStartListen = useCallback(() => {
+  const handleStartListen = useCallback(async () => {
     if (!isConnected) {
       setError('Not connected to backend');
       return;
     }
 
-    setAgentState('listening');
-    setIsRecording(true);
-    setError(null);
-
-    // Simulate microphone input
-    const interval = setInterval(() => {
-      setMicrophoneAmplitude(Math.random() * 0.8 + 0.2);
-    }, 50);
-
-    return () => clearInterval(interval);
-  }, [isConnected, setAgentState, setError, setMicrophoneAmplitude]);
+    try {
+      await startMicrophone();
+      setAgentState('listening');
+      setIsRecording(true);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to start microphone:', err);
+      setError('Failed to access microphone');
+    }
+  }, [isConnected, setAgentState, setError, startMicrophone]);
 
   // Stop listening
   const handleStopListen = useCallback(() => {
+    stopMicrophone();
     setIsRecording(false);
     setMicrophoneAmplitude(0);
-
-    // Transition to thinking
+    
+    // If we were listening, transition to thinking (backend will update this too)
     if (agentState === 'listening') {
       setAgentState('thinking');
-
-      // Simulate thinking time
-      setTimeout(() => {
-        // Add mock transcript entry
-        addTranscriptItem({
-          id: `user-${Date.now()}`,
-          role: 'user',
-          text: 'How can I help you today?',
-          timestamp: Date.now(),
-          isFinal: true,
-        });
-
-        // Transition to speaking
-        setAgentState('speaking');
-
-        // Add agent response
-        setTimeout(() => {
-          addTranscriptItem({
-            id: `agent-${Date.now()}`,
-            role: 'agent',
-            text: 'Welcome! How may I assist you?',
-            timestamp: Date.now(),
-            isFinal: true,
-          });
-
-          // Back to idle
-          setTimeout(() => {
-            setAgentState('idle');
-            setMicrophoneAmplitude(0);
-          }, 2000);
-        }, 500);
-      }, 1000);
     }
-  }, [agentState, setAgentState, addTranscriptItem, setMicrophoneAmplitude]);
+  }, [stopMicrophone, setMicrophoneAmplitude, agentState, setAgentState]);
+
+
 
   const handleClear = useCallback(() => {
     clearTranscript();
@@ -184,16 +180,9 @@ function App() {
           )}
 
           {/* Transcript */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="mt-12 md:mt-16 w-full max-w-xl px-6 py-4 rounded-2xl
-              bg-white bg-opacity-5 backdrop-blur-xl border border-white border-opacity-10
-              shadow-xl"
-          >
+          <div className="mt-12 md:mt-16 w-full px-4 z-40">
             <Transcript />
-          </motion.div>
+          </div>
 
           {/* Control Deck */}
           <ControlDeck

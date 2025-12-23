@@ -26,55 +26,50 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
 
   const isActive = agentState === 'listening' || agentState === 'thinking' || agentState === 'speaking';
 
-  const buttonVariants = {
-    hover: { scale: 1.05, y: -2 },
-    tap: { scale: 0.95 },
-  };
-
   const glassButtonClass = `
-    relative px-6 py-3 rounded-full
-    bg-white bg-opacity-10
-    backdrop-blur-lg
-    border border-white border-opacity-20
-    shadow-lg
-    hover:bg-opacity-20 hover:border-opacity-30
-    hover:shadow-xl
-    transition-all duration-200
+    relative px-8 py-4 rounded-2xl
+    bg-void-900 bg-opacity-60
+    backdrop-blur-xl
+    border border-white border-opacity-10
+    shadow-xl
+    hover:bg-opacity-80 hover:border-opacity-20
+    hover:shadow-2xl hover:scale-105
+    transition-all duration-300
     disabled:opacity-50 disabled:cursor-not-allowed
-    font-medium text-sm
+    font-semibold text-sm tracking-wide
     text-white
     focus:outline-none focus:ring-2 focus:ring-offset-2
     focus:ring-offset-void-900
   `;
 
   return (
-    <div className="flex gap-4 justify-center items-center mt-8">
+    <div className="fixed bottom-8 left-0 right-0 flex gap-6 justify-center items-center z-50 pointer-events-none">
+      <div className="pointer-events-auto flex gap-4 p-2 rounded-3xl bg-black bg-opacity-20 backdrop-blur-md border border-white border-opacity-5">
       {/* Start/Stop Button */}
       <motion.button
-        variants={buttonVariants}
-        whileHover="hover"
-        whileTap="tap"
+        whileTap={{ scale: 0.95 }}
         onClick={isActive ? onStopListen : onStartListen}
         disabled={!isConnected || agentState === 'error'}
         className={`
           ${glassButtonClass}
           ${
             isActive
-              ? 'focus:ring-red-400 text-red-200'
-              : 'focus:ring-neon-300 text-neon-100'
+              ? 'bg-red-500/20 border-red-500/30 text-red-100 hover:bg-red-500/30'
+              : 'bg-neon-500/20 border-neon-500/30 text-neon-100 hover:bg-neon-500/30'
           }
+          min-w-[140px]
         `}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-3">
           {isActive ? (
             <>
-              <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-              Stop
+              <div className="w-2.5 h-2.5 bg-red-400 rounded-full animate-pulse shadow-[0_0_10px_rgba(248,113,113,0.5)]" />
+              <span>End Session</span>
             </>
           ) : (
             <>
-              <div className="w-2 h-2 bg-neon-300 rounded-full" />
-              Start
+              <div className="w-2.5 h-2.5 bg-neon-400 rounded-full shadow-[0_0_10px_rgba(45,212,191,0.5)]" />
+              <span>Start Chat</span>
             </>
           )}
         </div>
@@ -82,15 +77,14 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
 
       {/* Clear Button */}
       <motion.button
-        variants={buttonVariants}
-        whileHover="hover"
-        whileTap="tap"
+        whileTap={{ scale: 0.95 }}
         onClick={onClear}
         disabled={!isConnected}
-        className={`${glassButtonClass} focus:ring-electric-300 text-electric-200`}
+        className={`${glassButtonClass} hover:bg-white/10`}
       >
         Clear
       </motion.button>
+      </div>
 
       {/* Connection Status Indicator */}
       <motion.div

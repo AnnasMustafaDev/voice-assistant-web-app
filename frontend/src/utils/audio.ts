@@ -26,7 +26,7 @@ export async function encodeAudioToWAV(audioBuffer: AudioBuffer): Promise<Blob> 
   return encodeWAV(audioData, sampleRate, numberOfChannels, bitDepth);
 }
 
-function encodeWAV(
+export function encodeWAV(
   samples: Float32Array,
   sampleRate: number,
   numChannels: number,
@@ -96,6 +96,50 @@ export function base64ToBlob(base64: string, mimeType: string = 'audio/wav'): Bl
     bytes[i] = binaryString.charCodeAt(i);
   }
   return new Blob([bytes], { type: mimeType });
+}
+
+let currentAudio: HTMLAudioElement | null = null;
+
+export function stopAudio(): void {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
+}
+
+export function playAudio(base64Data: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      // Stop any currently playing audio
+      stopAudio();
+
+      const blob = base64ToBlob(base64Data);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudio = audio;
+      
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) {
+          currentAudio = null;
+        }
+        resolve();
+      };
+      
+      audio.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) {
+          currentAudio = null;
+        }
+        reject(e);
+      };
+      
+      audio.play().catch(reject);
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 
 /**

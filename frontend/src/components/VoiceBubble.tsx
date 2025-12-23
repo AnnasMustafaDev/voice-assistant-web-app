@@ -1,258 +1,133 @@
-/**
- * NeuralSphere: Advanced voice bubble with glassmorphism and 5-state animations
- * States: idle (breathing), listening (amplitude-based), thinking (shimmer), 
- * speaking (pulsing), error (shake)
- */
-
-import React, { useEffect, useMemo } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
+import type { Easing } from 'framer-motion';
 import { useAgentStore } from '../store/agentStore';
-import type { AgentState } from '../types';
 
 interface VoiceBubbleProps {
-  onStateChange?: (state: AgentState) => void;
   onClick?: () => void;
 }
 
-// State-specific color mappings
-const STATE_COLORS = {
-  idle: { bg: 'from-void-500 to-void-700', glow: 'rgba(46, 16, 101, 0.5)' },
-  listening: { bg: 'from-neon-300 to-neon-400', glow: 'rgba(6, 182, 212, 0.6)' },
-  thinking: { bg: 'from-neural-400 to-neural-500', glow: 'rgba(217, 70, 239, 0.5)' },
-  speaking: { bg: 'from-electric-300 to-electric-400', glow: 'rgba(217, 70, 239, 0.8)' },
-  error: { bg: 'from-red-500 to-red-600', glow: 'rgba(239, 68, 68, 0.7)' },
-};
-
-export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onStateChange, onClick }) => {
+export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onClick }) => {
   const agentState = useAgentStore((state) => state.agentState);
-  const audioAmplitude = useAgentStore((state) => state.audioAmplitude);
 
-  useEffect(() => {
-    onStateChange?.(agentState);
-  }, [agentState, onStateChange]);
+  // Animation variants for different states
+  const getBubbleVariant = () => {
+    const easeInOut: Easing = "easeInOut";
+    const linear: Easing = "linear";
 
-  // Calculate dynamic scale based on audio amplitude
-  const amplitudeScale = useMemo(() => {
-    if (agentState === 'listening') return 1 + audioAmplitude * 0.25;
-    if (agentState === 'speaking') return 1 + audioAmplitude * 0.3;
-    return 1;
-  }, [audioAmplitude, agentState]);
-
-  // Animation variants for each state
-  const bubbleVariants = {
-    idle: {
-      scale: [1, 1.05, 1],
-      transition: { duration: 3, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    listening: {
-      scale: amplitudeScale,
-      transition: { duration: 0.1 },
-    },
-    thinking: {
-      opacity: [0.8, 1, 0.8],
-      transition: { duration: 1.5, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    speaking: {
-      scale: amplitudeScale,
-      transition: { duration: 0.08 },
-    },
-    error: {
-      x: [0, -8, 8, -8, 8, 0],
-      transition: { duration: 0.5 },
-    },
+    switch (agentState) {
+      case 'listening':
+        return {
+          scale: [1, 1.05, 1],
+          borderRadius: [
+            "50% 50% 50% 50% / 50% 50% 50% 50%",
+            "55% 45% 50% 50% / 50% 55% 45% 50%",
+            "50% 50% 50% 50% / 50% 50% 50% 50%"
+          ],
+          transition: {
+            duration: 4,
+            repeat: Infinity,
+            ease: easeInOut
+          }
+        };
+      case 'thinking':
+        return {
+          scale: [1, 0.95, 1.05, 1],
+          borderRadius: [
+            "60% 40% 30% 70% / 60% 30% 70% 40%",
+            "30% 60% 70% 40% / 50% 60% 30% 60%",
+            "60% 40% 30% 70% / 60% 30% 70% 40%"
+          ],
+          rotate: [0, 180, 360],
+          transition: {
+            duration: 2,
+            repeat: Infinity,
+            ease: linear
+          }
+        };
+      case 'speaking':
+        return {
+          scale: [1, 1.1, 0.95, 1.15, 1],
+          borderRadius: [
+            "50% 50% 50% 50% / 50% 50% 50% 50%",
+            "60% 40% 40% 60% / 50% 40% 60% 50%",
+            "40% 60% 60% 40% / 60% 50% 40% 60%",
+            "50% 50% 50% 50% / 50% 50% 50% 50%"
+          ],
+          transition: {
+            duration: 1.5,
+            repeat: Infinity,
+            ease: easeInOut
+          }
+        };
+      default: // idle
+        return {
+          scale: 1,
+          borderRadius: "50%",
+          transition: { duration: 0.5 }
+        };
+    }
   };
 
-  const innerCircleVariants = {
-    idle: { scale: 0.4, opacity: 0.6 },
-    listening: {
-      scale: [0.5, 0.8, 0.6],
-      opacity: [0.7, 1, 0.7],
-      transition: { duration: 0.4, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    thinking: {
-      scale: 0.7,
-      rotate: 360,
-      opacity: 0.9,
-      transition: { rotate: { duration: 2, repeat: Infinity, repeatType: 'loop' as const } },
-    },
-    speaking: {
-      scale: [0.4, 0.85, 0.5, 0.8, 0.45],
-      opacity: [0.7, 1, 0.7, 1, 0.7],
-      transition: { duration: 0.6, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    error: { scale: 0.4, opacity: 1 },
+  const getColor = () => {
+    switch (agentState) {
+      case 'listening': return 'bg-neon-400';
+      case 'thinking': return 'bg-electric-400';
+      case 'speaking': return 'bg-neon-300';
+      default: return 'bg-white';
+    }
   };
-
-  const glowVariants = {
-    idle: {
-      boxShadow: `0 0 40px ${STATE_COLORS.idle.glow}, 0 0 80px ${STATE_COLORS.idle.glow}`,
-      transition: { duration: 2, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    listening: {
-      boxShadow: [
-        `0 0 40px ${STATE_COLORS.listening.glow}`,
-        `0 0 80px ${STATE_COLORS.listening.glow}`,
-        `0 0 40px ${STATE_COLORS.listening.glow}`,
-      ],
-      transition: { duration: 1.5, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    thinking: {
-      boxShadow: [
-        `0 0 50px ${STATE_COLORS.thinking.glow}`,
-        `0 0 100px ${STATE_COLORS.thinking.glow}`,
-        `0 0 50px ${STATE_COLORS.thinking.glow}`,
-      ],
-      transition: { duration: 1, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    speaking: {
-      boxShadow: [
-        `0 0 60px ${STATE_COLORS.speaking.glow}`,
-        `0 0 120px ${STATE_COLORS.speaking.glow}`,
-        `0 0 60px ${STATE_COLORS.speaking.glow}`,
-      ],
-      transition: { duration: 0.8, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-    error: {
-      boxShadow: [
-        `0 0 40px ${STATE_COLORS.error.glow}`,
-        `0 0 80px ${STATE_COLORS.error.glow}`,
-        `0 0 40px ${STATE_COLORS.error.glow}`,
-      ],
-      transition: { duration: 0.6, repeat: Infinity, repeatType: 'reverse' as const },
-    },
-  };
-
-  const colors = STATE_COLORS[agentState];
 
   return (
-    <div className="flex flex-col items-center justify-center">
-      {/* Outer glow layer */}
+    <div className="relative flex justify-center items-center h-64 w-64" onClick={onClick}>
+      {/* Outer Glow / Aura */}
       <motion.div
-        variants={glowVariants}
-        initial="idle"
-        animate={agentState}
-        className="absolute w-48 h-48 rounded-full"
-        aria-hidden="true"
+        animate={{
+          scale: agentState === 'speaking' ? [1, 1.2, 1] : [1, 1.1, 1],
+          opacity: [0.3, 0.1, 0.3],
+        }}
+        transition={{
+          duration: 3,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+        className={`absolute inset-0 rounded-full blur-3xl ${getColor()} opacity-20`}
       />
 
-      {/* Main bubble container with glassmorphism */}
-      <motion.button
-        variants={bubbleVariants}
-        initial="idle"
-        animate={agentState}
-        onClick={onClick}
+      {/* Inner Jellyfish Blob */}
+      <motion.div
+        animate={getBubbleVariant()}
         className={`
-          relative w-40 h-40 rounded-full flex items-center justify-center
-          bg-gradient-to-br ${colors.bg}
-          backdrop-blur-xl
-          border border-white border-opacity-20
-          shadow-2xl
-          hover:shadow-2xl hover:border-opacity-30
-          focus:outline-none focus:ring-2 focus:ring-offset-2
-          focus:ring-offset-void-900 focus:ring-neon-300
-          transition-all duration-200
-          disabled:opacity-50 disabled:cursor-not-allowed
+          relative w-48 h-48
+          backdrop-blur-md
+          bg-gradient-to-br from-white/10 to-white/5
+          border border-white/20
+          shadow-[0_0_50px_rgba(0,0,0,0.2)]
+          flex items-center justify-center
+          overflow-hidden
           cursor-pointer
-          group
         `}
-        aria-label={`Neural voice sphere - ${agentState}`}
-        type="button"
+        style={{
+          boxShadow: `inset 0 0 20px rgba(255,255,255,0.1), 0 0 30px ${agentState === 'listening' ? 'rgba(52, 211, 153, 0.2)' : 'rgba(167, 139, 250, 0.2)'}`
+        }}
       >
-        {/* Inner animated circle - represents neural activity */}
+        {/* Core */}
         <motion.div
-          variants={innerCircleVariants}
-          initial="idle"
-          animate={agentState}
-          className={`
-            absolute inset-0 m-auto
-            rounded-full
-            ${agentState === 'thinking' ? 'border-2 border-dashed border-white border-opacity-50' : 'bg-white bg-opacity-20'}
-            pointer-events-none
-          `}
-          style={{
-            width: '60%',
-            height: '60%',
-          }}
-        />
-
-        {/* Shimmer effect for thinking state */}
-        {agentState === 'thinking' && (
-          <div
-            className="absolute inset-0 rounded-full overflow-hidden pointer-events-none"
-            style={{
-              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-              backgroundSize: '200% 200%',
-              animation: 'shimmer 2s infinite',
-            }}
-          />
-        )}
-
-        {/* Status indicator dot */}
-        <div
-          className={`
-            absolute top-2 right-2 w-3 h-3 rounded-full
-            ${
-              agentState === 'idle'
-                ? 'bg-neon-300 animate-pulse'
-                : agentState === 'listening'
-                  ? 'bg-neon-300 animate-bounce'
-                  : agentState === 'thinking'
-                    ? 'bg-neural-300 animate-spin'
-                    : agentState === 'speaking'
-                      ? 'bg-electric-300 animate-pulse'
-                      : 'bg-red-400 animate-pulse'
-            }
-            shadow-lg
-          `}
-        />
-
-        {/* Center label - shows state in lowercase */}
-        <span className="text-xs font-semibold text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-          {agentState.toUpperCase().slice(0, 3)}
-        </span>
-      </motion.button>
-
-      {/* Particle effects around bubble */}
-      {(agentState === 'listening' || agentState === 'speaking') && (
-        <ParticleField state={agentState} />
-      )}
-
-      <style>{`
-        @keyframes shimmer {
-          0% {
-            background-position: -200% center;
-          }
-          100% {
-            background-position: 200% center;
-          }
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// Particle field component for dynamic visualization
-const ParticleField: React.FC<{ state: AgentState }> = ({ state }) => {
-  const isListening = state === 'listening';
-  
-  return (
-    <div className="absolute w-56 h-56 rounded-full pointer-events-none">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-1 h-1 rounded-full bg-white"
           animate={{
-            x: [0, Math.cos((i / 8) * Math.PI * 2) * 50],
-            y: [0, Math.sin((i / 8) * Math.PI * 2) * 50],
-            opacity: [0.5, 0, 0.5],
+            scale: [1, 0.8, 1],
           }}
           transition={{
-            duration: isListening ? 1.5 : 0.8,
+            duration: 2,
             repeat: Infinity,
-            delay: i * 0.1,
+            ease: "easeInOut"
           }}
+          className={`w-24 h-24 rounded-full ${getColor()} opacity-80 blur-xl`}
         />
-      ))}
+        
+        {/* Surface reflections */}
+        <div className="absolute top-4 left-8 w-12 h-6 bg-white opacity-20 rounded-full blur-sm transform -rotate-12" />
+        <div className="absolute bottom-6 right-8 w-8 h-4 bg-white opacity-10 rounded-full blur-sm transform -rotate-12" />
+      </motion.div>
     </div>
   );
 };

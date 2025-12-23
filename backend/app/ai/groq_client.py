@@ -122,11 +122,17 @@ class GroqClient:
                 input=text,
             )
             
-            logger.info(f"Speech synthesis completed: {len(response)} bytes")
+            # logger.info(f"Speech synthesis completed: {len(response)} bytes")
             
             # Response content is already bytes
             if hasattr(response, 'content'):
                 return response.content
+            elif hasattr(response, 'read'):
+                if asyncio.iscoroutinefunction(response.read):
+                    return await response.read()
+                return response.read()
+            elif hasattr(response, 'aread'):
+                return await response.aread()
             else:
                 return response
         except Exception as e:

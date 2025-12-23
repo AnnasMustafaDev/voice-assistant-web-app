@@ -8,9 +8,16 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+# Ensure async driver is used
+database_url = settings.DATABASE_URL
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+print(f"Using Database URL: {database_url}")
+
 # Create async engine
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    database_url,
     echo=settings.DEBUG,
     future=True,
     pool_pre_ping=True,

@@ -1,6 +1,6 @@
 """Voice streaming endpoints."""
 
-from uuid import UUID
+from uuid import uuid4
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -38,7 +38,9 @@ async def voice_stream(websocket: WebSocket):
     
     try:
         # Wait for initial connection message
+        logger.info("Waiting for init message")
         init_msg = await websocket.receive_text()
+        logger.info(f"Received init message: {init_msg}")
         init_data = json.loads(init_msg)
         
         conversation_id = init_data.get("conversation_id")
@@ -46,6 +48,8 @@ async def voice_stream(websocket: WebSocket):
         tenant_id = init_data.get("tenant_id")
         language = init_data.get("language", "en")
         
+        logger.info(f"Init data: agent_id={agent_id}, tenant_id={tenant_id}, conversation_id={conversation_id}")
+
         if not all([agent_id, tenant_id]):
             await websocket.send_json({
                 "event": "error",
@@ -53,9 +57,26 @@ async def voice_stream(websocket: WebSocket):
             })
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+            
+        # Initialize agent
+        if agent_id == "receptionist-1" or tenant_id == "demo-tenant":
+            # Use mock agent for demo
+            class MockAgent:
+                type = "receptionist"
+                voice = "Jennifer-PlayAI"
+                system_prompt = "You are a helpful receptionist."
+            agent = MockAgent()
+            logger.info("Using mock agent for demo")
+        else:
+            # Try to fetch from DB
+            # TODO: Implement DB fetch with proper UUID handling
+            pass
         
         # Create stream context
-        stream_context = create_stream_context(conversation_id or str(UUID()), language)
+        if not conversation_id:
+            conversation_id = str(uuid4())
+        
+        stream_context = create_stream_context(conversation_id, language)
         
         # Send ready signal
         await websocket.send_json({
@@ -77,6 +98,14 @@ async def voice_stream(websocket: WebSocket):
                 try:
                     transcript = await stt_from_base64(audio_b64, language)
                     
+                    # Filter out hallucinations
+                    clean_transcript = transcript.strip().lower()
+                    if not clean_transcript or \
+                       clean_transcript in ["thank you.", "thank you", "you", "you.", "thanks.", "thanks"] or \
+                       len(clean_transcript) < 2:
+                        logger.info(f"Ignored hallucination/noise: {transcript}")
+                        continue
+
                     # Send partial transcript
                     await websocket.send_json({
                         "event": "transcript_partial",
@@ -101,6 +130,7 @@ async def voice_stream(websocket: WebSocket):
                         )
                         
                         # Execute flow
+                        # Note: db_session is None here, orchestrator should handle it or we need to mock it
                         state = await orchestrator.execute_flow(db_session, state)
                         
                         # Synthesize response

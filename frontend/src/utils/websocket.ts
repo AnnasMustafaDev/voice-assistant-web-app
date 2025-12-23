@@ -4,6 +4,7 @@
 
 import type { WebSocketMessage, TranscriptItem } from '../types';
 import { useAgentStore } from '../store/agentStore';
+import { playAudio } from './audio';
 
 export function handleWebSocketMessage(message: WebSocketMessage): void {
   const { addTranscriptItem, setError, setAgentState } = useAgentStore.getState();
@@ -40,6 +41,14 @@ export function handleWebSocketMessage(message: WebSocketMessage): void {
     case 'audio_response':
       // Handle agent audio response
       setAgentState('speaking');
+      if (message.data) {
+        playAudio(message.data)
+          .then(() => setAgentState('idle'))
+          .catch((err) => {
+            console.error('Audio playback error:', err);
+            setAgentState('error');
+          });
+      }
       break;
 
     case 'status':

@@ -11,16 +11,38 @@ interface UseWebSocketOptions {
   url: string;
   onConnect?: () => void;
   onDisconnect?: () => void;
+  config?: {
+    tenantId: string;
+    agentId: string;
+    language?: string;
+  };
 }
 
-export function useWebSocket({ url, onConnect, onDisconnect }: UseWebSocketOptions) {
+export function useWebSocket({ url, onConnect, onDisconnect, config }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const { setIsConnected, setError } = useAgentStore();
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
+  
+  // Store callbacks in refs to prevent unnecessary reconnections
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const configRef = useRef(config);
+
+  useEffect(() => {
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+    configRef.current = config;
+  }, [onConnect, onDisconnect, config]);
 
   const connect = useCallback(() => {
     try {
+      // Close existing connection if any
+      if (wsRef.current) {
+        if (wsRef.current.readyState === WebSocket.OPEN) return;
+        wsRef.current.close();
+      }
+
       wsRef.current = new WebSocket(url);
 
       wsRef.current.onopen = () => {
@@ -28,7 +50,17 @@ export function useWebSocket({ url, onConnect, onDisconnect }: UseWebSocketOptio
         setIsConnected(true);
         setError(null);
         reconnectAttemptsRef.current = 0;
-        onConnect?.();
+        
+        // Send initial configuration
+        if (configRef.current && wsRef.current) {
+          wsRef.current.send(JSON.stringify({
+            tenant_id: configRef.current.tenantId,
+            agent_id: configRef.current.agentId,
+            language: configRef.current.language || 'en',
+          }));
+        }
+
+        onConnectRef.current?.();
       };
 
       wsRef.current.onmessage = (event) => {
@@ -42,13 +74,13 @@ export function useWebSocket({ url, onConnect, onDisconnect }: UseWebSocketOptio
 
       wsRef.current.onerror = (error) => {
         console.error('[WebSocket] Error:', error);
-        setError('WebSocket connection error');
+        // Don't set error immediately on connection error to avoid UI flicker during retry
       };
 
       wsRef.current.onclose = () => {
         console.log('[WebSocket] Disconnected');
         setIsConnected(false);
-        onDisconnect?.();
+        onDisconnectRef.current?.();
 
         // Attempt reconnection
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
@@ -64,7 +96,7 @@ export function useWebSocket({ url, onConnect, onDisconnect }: UseWebSocketOptio
       console.error('[WebSocket] Connection failed:', error);
       setError('Failed to connect to WebSocket');
     }
-  }, [url, setIsConnected, setError, onConnect, onDisconnect]);
+  }, [url, setIsConnected, setError]);
 
   const send = useCallback((message: WebSocketMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -83,8 +115,18 @@ export function useWebSocket({ url, onConnect, onDisconnect }: UseWebSocketOptio
 
   useEffect(() => {
     connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [connect]);
 
-  return { send, disconnect, isConnected: wsRef.current?.readyState === WebSocket.OPEN };
+  return {
+    connect,
+    disconnect,
+    send,
+    isConnected: useAgentStore((state) => state.isConnected),
+  };
 }

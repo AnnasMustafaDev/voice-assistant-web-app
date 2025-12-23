@@ -1,6 +1,6 @@
 """Reservation management service."""
 
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import logger
@@ -37,7 +37,7 @@ class ReservationService:
         try:
             # This would integrate with actual reservation system
             reservation = {
-                "id": str(UUID()),
+                "id": str(uuid4()),
                 "tenant_id": tenant_id,
                 "guest_name": guest_name,
                 "phone": phone,

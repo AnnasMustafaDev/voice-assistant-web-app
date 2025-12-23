@@ -44,6 +44,10 @@ class RAGRetriever:
         Returns:
             List of relevant documents
         """
+        if db is None:
+            logger.warning("Database session is None, skipping retrieval")
+            return []
+
         try:
             if not self.model:
                 # Fallback to keyword search

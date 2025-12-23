@@ -41,9 +41,22 @@ export const useAgentStore = create<AgentStore>((set) => ({
   // Action implementations
   setAgentState: (state) => set({ agentState: state }),
   addTranscriptItem: (item) =>
-    set((state) => ({
-      transcript: [...state.transcript, item],
-    })),
+    set((state) => {
+      // If item is not final (partial), check if we should update the last item or add new
+      if (!item.isFinal) {
+        const lastItem = state.transcript[state.transcript.length - 1];
+        if (lastItem && !lastItem.isFinal && lastItem.role === item.role) {
+          // Update existing partial item
+          const newTranscript = [...state.transcript];
+          newTranscript[newTranscript.length - 1] = item;
+          return { transcript: newTranscript };
+        }
+      }
+      // Otherwise add as new item
+      return {
+        transcript: [...state.transcript, item],
+      };
+    }),
   clearTranscript: () => set({ transcript: [] }),
   setIsConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),

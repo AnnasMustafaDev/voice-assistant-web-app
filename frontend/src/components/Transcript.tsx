@@ -3,19 +3,22 @@
  * Shows user and agent messages with auto-scroll and word highlighting
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAgentStore } from '../store/agentStore';
 
 export const Transcript: React.FC = () => {
   const transcript = useAgentStore((state) => state.transcript);
   const agentState = useAgentStore((state) => state.agentState);
+  const [isExpanded, setIsExpanded] = useState(false);
   const endOfTranscriptRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to latest message
   useEffect(() => {
-    endOfTranscriptRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [transcript]);
+    if (isExpanded) {
+      endOfTranscriptRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [transcript, isExpanded]);
 
   if (transcript.length === 0) {
     return (
@@ -23,38 +26,70 @@ export const Transcript: React.FC = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2 }}
-        className="text-center py-12"
+        className="text-center py-8"
       >
-        <div className="text-white text-opacity-60">
-          <p className="text-sm">Start speaking to see real-time transcript</p>
-          <div className="mt-4 flex gap-2 justify-center opacity-50">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                animate={{ opacity: [0.3, 1] }}
-                transition={{ delay: i * 0.2, duration: 0.8, repeat: Infinity }}
-                className="w-2 h-2 rounded-full bg-neon-300"
-              />
-            ))}
-          </div>
+        <div className="text-white text-opacity-40 font-light tracking-wide">
+          <p className="text-sm">Start speaking to begin conversation</p>
         </div>
       </motion.div>
     );
   }
 
+  const latestMessage = transcript[transcript.length - 1];
+
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-2 max-h-64 overflow-y-auto pr-2"
+      layout
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={`
+        relative w-full max-w-xl mx-auto
+        rounded-2xl overflow-hidden
+        bg-void-900 bg-opacity-40 backdrop-blur-xl
+        border border-white border-opacity-10
+        shadow-2xl
+        cursor-pointer
+        transition-all duration-500 ease-out
+        ${isExpanded ? 'h-[60vh] z-50' : 'h-20 hover:bg-opacity-50 hover:border-opacity-20'}
+      `}
     >
-      <AnimatePresence mode="popLayout">
-        {transcript.map((entry, idx) => (
-          <TranscriptEntry key={idx} entry={entry} agentState={agentState} />
-        ))}
-      </AnimatePresence>
-      <div ref={endOfTranscriptRef} />
+      {/* Header / Handle */}
+      <div className="absolute top-0 left-0 right-0 h-6 flex justify-center items-center opacity-30">
+        <div className="w-12 h-1 rounded-full bg-white" />
+      </div>
+
+      <div className={`p-6 ${isExpanded ? 'h-full overflow-y-auto' : 'h-full flex items-center'}`}>
+        <AnimatePresence mode="wait">
+          {!isExpanded ? (
+            <motion.div
+              key="preview"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full"
+            >
+              <p className="text-white text-opacity-90 text-center truncate px-4 font-medium text-lg">
+                <span className={`mr-2 text-xs uppercase tracking-wider opacity-50 ${latestMessage.role === 'user' ? 'text-neon-400' : 'text-electric-400'}`}>
+                  {latestMessage.role === 'user' ? 'You' : 'Agent'}
+                </span>
+                {latestMessage.text}
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4 pt-4"
+            >
+              {transcript.map((entry, idx) => (
+                <TranscriptEntry key={idx} entry={entry} agentState={agentState} />
+              ))}
+              <div ref={endOfTranscriptRef} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 };
