@@ -1,11 +1,13 @@
 /**
  * Main App Component: Voice AI Agent Interface
- * Central orchestration of all voice interaction features
- * Features: Neural sphere voice bubble, live transcript, expandable chat, glassmorphism UI
- * Push-to-talk with client-side VAD
+ * STRICT MICROPHONE LIFECYCLE CONTROL
+ * 1. Mic only active during "Listening" state
+ * 2. Mic disabled during TTS playback (agent speaking)
+ * 3. Push-to-talk triggers listening
+ * 4. Release button finalizes utterance
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { VoiceBubble } from './components/VoiceBubble';
 import { Transcript } from './components/Transcript';
@@ -18,6 +20,8 @@ import './index.css';
 
 function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const micActiveRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const {
     agentState,
@@ -35,53 +39,52 @@ function App() {
   const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'receptionist-1';
   const AGENT_NAME = import.meta.env.VITE_AGENT_NAME || 'Reception Agent';
 
-  // Initialize agent
+  // Initialize agent once
   useEffect(() => {
     setCurrentAgent({
       tenantId: TENANT_ID,
       agentId: AGENT_ID,
       agentName: AGENT_NAME,
     });
-  }, [setCurrentAgent]);
+  }, []);
 
-  // Memoize WebSocket config
-  const wsConfig = useState(() => ({
+  // WebSocket - created once, never reconnects automatically
+  const wsConfigRef = useRef({
     tenantId: TENANT_ID,
     agentId: AGENT_ID,
-  }))[0];
+  });
 
-  const handleConnect = useCallback(() => {
-    console.log('[App] Connected to voice stream');
-  }, []);
-
-  const handleDisconnect = useCallback(() => {
-    console.log('[App] Disconnected from voice stream');
-  }, []);
-
-  // WebSocket connection - returns sendUtterance method
   const { sendUtterance, isConnected: wsConnected } = useWebSocket({
     url: `${BACKEND_URL.replace('http', 'ws')}/voice/stream`,
-    config: wsConfig,
-    onConnect: handleConnect,
-    onDisconnect: handleDisconnect
+    config: wsConfigRef.current,
+    onConnect: useCallback(() => {
+      console.log('[App] WebSocket connected');
+    }, []),
+    onDisconnect: useCallback(() => {
+      console.log('[App] WebSocket disconnected');
+      // STOP MIC IMMEDIATELY if disconnected
+      if (micActiveRef.current) {
+        console.warn('[App] WebSocket lost - killing microphone');
+        stopMicrophoneImmediate();
+      }
+    }, [])
   });
 
   // Handle complete utterance from VAD
   const handleUtterance = useCallback((base64WavData: string, durationMs: number) => {
-    console.log(`[App] Complete utterance received: ${durationMs}ms, ${Math.round(base64WavData.length / 1024)}KB`);
+    console.log(`[App] Utterance finalized: ${durationMs}ms`);
     
     if (!wsConnected) {
-      console.warn('[App] WebSocket not connected, cannot send utterance');
+      console.error('[App] Cannot send - WebSocket not connected');
       setError('Connection lost');
       return;
     }
 
+    // STOP MIC IMMEDIATELY after utterance is finalized
+    micActiveRef.current = false;
+    
     try {
-      // Send complete utterance to backend
       sendUtterance(base64WavData, durationMs);
-      console.log('[App] Utterance sent to backend');
-      
-      // Update state
       setIsListening(false);
       if (agentState === 'listening') {
         setAgentState('thinking');
@@ -92,45 +95,91 @@ function App() {
     }
   }, [wsConnected, sendUtterance, setIsListening, agentState, setAgentState, setError]);
 
-  // Microphone hook - collects chunks and finalizes utterances via VAD
+  // Microphone hook - ONLY operates during listening state
   const { startMicrophone, stopMicrophone, forceFinalize } = useMicrophone({
     onUtterance: handleUtterance
   });
 
-  // Start listening (push-to-talk down)
+  // Stop microphone immediately (hard stop)
+  const stopMicrophoneImmediate = useCallback(async () => {
+    console.log('[App] Hard stopping microphone');
+    try {
+      stopMicrophone();
+      // Kill all audio tracks forcefully
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        await audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    } catch (err) {
+      console.error('[App] Error stopping mic:', err);
+    }
+  }, [stopMicrophone]);
+
+  // Start listening (ONLY on explicit user action)
   const handleStartListen = useCallback(async () => {
     if (!wsConnected) {
-      setError('Not connected to backend');
-      console.warn('[App] Cannot start listen: WebSocket not connected');
+      setError('Not connected - please refresh');
+      return;
+    }
+
+    if (agentState === 'speaking') {
+      console.warn('[App] Cannot record while speaking');
+      setError('Wait for agent to finish speaking');
       return;
     }
 
     try {
-      console.log('[App] Starting microphone capture');
-      await startMicrophone();
+      console.log('[App] Starting microphone - user pressing button');
+      micActiveRef.current = true;
       setIsListening(true);
       setAgentState('listening');
       setError(null);
+      await startMicrophone();
     } catch (err) {
-      console.error('[App] Failed to start microphone:', err);
-      setError('Failed to access microphone');
+      console.error('[App] Microphone failed:', err);
+      micActiveRef.current = false;
       setIsListening(false);
+      setError('Microphone error - check permissions');
     }
-  }, [wsConnected, startMicrophone, setIsListening, setAgentState, setError]);
+  }, [wsConnected, agentState, startMicrophone, setIsListening, setAgentState, setError]);
 
-  // Stop listening (push-to-talk up) - force finalize utterance
+  // Stop listening (release button)
   const handleStopListen = useCallback(() => {
-    console.log('[App] Stopping microphone capture');
+    console.log('[App] User released button - finalizing utterance');
     forceFinalize();
-    stopMicrophone();
-  }, [forceFinalize, stopMicrophone]);
+    // Don't call stopMicrophone() yet - let VAD finalize first
+  }, [forceFinalize]);
+
+  const handleInterrupt = useCallback(async () => {
+    console.log('[App] INTERRUPT - Stopping everything');
+    // Hard stop microphone immediately
+    micActiveRef.current = false;
+    setIsListening(false);
+    
+    try {
+      // Stop recording if active
+      stopMicrophone();
+      // Hard kill audio context
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        await audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    } catch (err) {
+      console.error('[App] Error during interrupt:', err);
+    }
+    
+    // Reset to idle
+    setAgentState('idle');
+    setError(null);
+  }, [stopMicrophone, setIsListening, setAgentState, setError]);
 
   const handleClear = useCallback(() => {
-    console.log('[App] Clearing transcript');
+    console.log('[App] Clearing');
     clearTranscript();
     setAgentState('idle');
     setError(null);
     setIsListening(false);
+    micActiveRef.current = false;
   }, [clearTranscript, setAgentState, setError, setIsListening]);
 
   return (
@@ -163,11 +212,15 @@ function App() {
           transition={{ duration: 0.6 }}
           className="w-full text-center mb-8 md:mb-12"
         >
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-            Voice AI Agent
-          </h1>
-          <p className="text-neon-300 text-sm md:text-base font-medium">
-            {agentState.toUpperCase()}
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="h-1 w-8 bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full" />
+            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+              AI Agent
+            </h1>
+            <div className="h-1 w-8 bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full" />
+          </div>
+          <p className="text-cyan-300 text-xs md:text-sm font-semibold tracking-widest uppercase letter-spacing">
+            STATUS: <span className="text-neon-300 font-bold">{agentState}</span>
           </p>
         </motion.header>
 
@@ -193,46 +246,14 @@ function App() {
             onStartListen={handleStartListen}
             onStopListen={handleStopListen}
             onForceFinalize={forceFinalize}
+            onInterrupt={handleInterrupt}
             onClear={handleClear}
           />
         </motion.div>
 
-        {/* Floating action buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="flex gap-4 items-center"
-        >
-          Chat history button
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            className={`
-              px-6 py-3 rounded-full
-              backdrop-blur-lg
-              border border-purple border-opacity-20
-              shadow-lg
-              hover:shadow-xl
-              transition-all duration-200
-              font-medium text-sm
-              text-black
-              focus:outline-none focus:ring-2 focus:ring-offset-2
-              focus:ring-offset-void-900 focus:ring-neon-300
-              ${
-                isChatOpen
-                  ? 'bg-neon-300 bg-opacity-30'
-                  : 'bg-white bg-opacity-10 hover:bg-opacity-20'
-              }
-            `}
-          >
-            {isChatOpen ? '✕ Close' : '💬 History'}
-          </motion.button>
-        </motion.div>
       </div>
 
-      {/* Chat Window */}
+      {/* Chat Window - Right side panel */}
       <ChatWindow isOpen={isChatOpen} onToggle={setIsChatOpen} />
 
       {/* Keyboard shortcuts hint */}

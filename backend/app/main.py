@@ -39,7 +39,7 @@ async def cache_cleanup_loop():
     while True:
         try:
             await asyncio.sleep(300)  # Every 5 minutes
-            cleanup_cache_periodically()
+            await cleanup_cache_periodically()
         except Exception as e:
             logger.error(f"Cache cleanup error: {str(e)}")
 

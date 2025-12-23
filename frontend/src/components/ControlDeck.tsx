@@ -12,6 +12,7 @@ interface ControlDeckProps {
   onStartListen: () => void;
   onStopListen: () => void;
   onForceFinalize?: () => void;
+  onInterrupt: () => void;
   onClear: () => void;
 }
 
@@ -19,11 +20,13 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
   onStartListen,
   onStopListen,
   onForceFinalize,
+  onInterrupt,
   onClear,
 }) => {
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const isConnected = useAgentStore((state) => state.isConnected);
-  const isListening = useAgentStore((state) => state.isListening);
   const error = useAgentStore((state) => state.error);
+  const transcript = useAgentStore((state) => state.transcript);
   const [isPushDown, setIsPushDown] = useState(false);
 
   const glassButtonClass = `
@@ -102,17 +105,40 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
       </motion.button>
 
       {/* Control Buttons Row */}
-      <div className="pointer-events-auto flex gap-3 p-3 rounded-3xl bg-black bg-opacity-20 backdrop-blur-md border border-white border-opacity-5">
+      <div className="pointer-events-auto flex gap-3 p-3 rounded-3xl bg-black bg-opacity-20 backdrop-blur-md border border-white border-opacity-5 relative">
+        {/* Chat Preview - One sentence above buttons */}
+        {transcript.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-72"
+          >
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setIsChatOpen(true)}
+              className="w-full px-4 py-2 rounded-xl
+                bg-white bg-opacity-10 backdrop-blur-lg
+                border border-white border-opacity-20
+                hover:bg-opacity-20 transition-all
+                text-white text-xs text-center truncate
+                font-medium pointer-events-auto"
+            >
+              <span className="opacity-60">Latest: </span>
+              {transcript[transcript.length - 1]?.text}
+            </motion.button>
+          </motion.div>
+        )}
+
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={() => {
-            onStopListen();
-            onForceFinalize?.();
+            onInterrupt();
           }}
-          disabled={!isConnected || !isListening}
+          disabled={!isConnected}
           className={`${glassButtonClass}`}
         >
-          Stop
+          ⏹ Stop
         </motion.button>
 
         <motion.button
@@ -122,6 +148,15 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
           className={`${glassButtonClass}`}
         >
           Clear
+        </motion.button>
+
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          disabled={!isConnected || transcript.length === 0}
+          className={`${glassButtonClass}`}
+        >
+          💬 {isChatOpen ? 'Hide' : 'Show'}
         </motion.button>
       </div>
 

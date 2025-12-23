@@ -13,14 +13,17 @@ export const Transcript: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const endOfTranscriptRef = useRef<HTMLDivElement>(null);
 
+  // Filter to only show messages (user and agent), not status
+  const messages = transcript.filter(item => item.role === 'user' || item.role === 'agent');
+
   // Auto-scroll to latest message
   useEffect(() => {
     if (isExpanded) {
       endOfTranscriptRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [transcript, isExpanded]);
+  }, [messages, isExpanded]);
 
-  if (transcript.length === 0) {
+  if (messages.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -28,14 +31,14 @@ export const Transcript: React.FC = () => {
         transition={{ duration: 0.4, delay: 0.2 }}
         className="text-center py-8"
       >
-        <div className="text-white text-opacity-40 font-light tracking-wide">
+        {/* <div className="text-white text-opacity-40 font-light tracking-wide">
           <p className="text-sm">Start speaking to begin conversation</p>
-        </div>
+        </div> */}
       </motion.div>
     );
   }
 
-  const latestMessage = transcript[transcript.length - 1];
+  const latestMessage = messages[messages.length - 1];
 
   return (
     <motion.div
@@ -82,7 +85,7 @@ export const Transcript: React.FC = () => {
               exit={{ opacity: 0 }}
               className="space-y-4 pt-4"
             >
-              {transcript.map((entry, idx) => (
+              {messages.map((entry, idx) => (
                 <TranscriptEntry key={idx} entry={entry} agentState={agentState} />
               ))}
               <div ref={endOfTranscriptRef} />
