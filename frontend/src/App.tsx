@@ -93,7 +93,7 @@ function App() {
   }, [wsConnected, sendUtterance, setIsListening, agentState, setAgentState, setError]);
 
   // Microphone hook - collects chunks and finalizes utterances via VAD
-  const { startMicrophone, stopMicrophone, forceFinalize, isInitialized } = useMicrophone({
+  const { startMicrophone, stopMicrophone, forceFinalize } = useMicrophone({
     onUtterance: handleUtterance
   });
 
@@ -102,12 +102,6 @@ function App() {
     if (!wsConnected) {
       setError('Not connected to backend');
       console.warn('[App] Cannot start listen: WebSocket not connected');
-      return;
-    }
-
-    if (!isInitialized) {
-      setError('Microphone not initialized');
-      console.warn('[App] Cannot start listen: Microphone not initialized');
       return;
     }
 
@@ -122,7 +116,7 @@ function App() {
       setError('Failed to access microphone');
       setIsListening(false);
     }
-  }, [wsConnected, isInitialized, startMicrophone, setIsListening, setAgentState, setError]);
+  }, [wsConnected, startMicrophone, setIsListening, setAgentState, setError]);
 
   // Stop listening (push-to-talk up) - force finalize utterance
   const handleStopListen = useCallback(() => {
@@ -210,7 +204,7 @@ function App() {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="flex gap-4 items-center"
         >
-          {/* Chat history button */}
+          Chat history button
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -218,12 +212,12 @@ function App() {
             className={`
               px-6 py-3 rounded-full
               backdrop-blur-lg
-              border border-white border-opacity-20
+              border border-purple border-opacity-20
               shadow-lg
               hover:shadow-xl
               transition-all duration-200
               font-medium text-sm
-              text-white
+              text-black
               focus:outline-none focus:ring-2 focus:ring-offset-2
               focus:ring-offset-void-900 focus:ring-neon-300
               ${
@@ -235,18 +229,6 @@ function App() {
           >
             {isChatOpen ? '✕ Close' : '💬 History'}
           </motion.button>
-
-          {/* Status indicator */}
-          <div className={`px-3 py-2 rounded-full text-xs font-semibold
-            ${
-              wsConnected
-                ? 'bg-neon-300 bg-opacity-20 text-neon-200'
-                : 'bg-red-500 bg-opacity-20 text-red-200'
-            }
-            backdrop-blur-lg border border-white border-opacity-10
-          `}>
-            {wsConnected ? '● Live' : '● Offline'}
-          </div>
         </motion.div>
       </div>
 

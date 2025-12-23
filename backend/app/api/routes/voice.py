@@ -108,120 +108,110 @@ async def voice_stream(websocket: WebSocket):
                 logger.error(f"Failed to receive message: {str(e)}")
                 break
             
-            if message.get("event") == "audio_chunk":
-                audio_b64 = message.get("data")
+            # Handle audio utterances (complete utterances from client VAD)
+            if message.get("type") == "audio_utterance":
+                audio_b64 = message.get("audio")
                 if not audio_b64:
                     continue
                 
-                # Decode base64 audio chunk
+                # Decode base64 audio utterance
                 try:
                     audio_bytes = base64.b64decode(audio_b64)
                 except Exception as e:
                     logger.error(f"Base64 decode error: {str(e)}")
                     continue
                 
-                # Process with VAD - returns complete utterance when ready
-                has_utterance, utterance_audio = vad.process_chunk(audio_bytes)
+                logger.info(f"Received audio utterance ({len(audio_bytes)} bytes)")
                 
-                buffer_size_ms = vad.get_buffer_size_ms()
-                logger.info(f"Audio buffered: {buffer_size_ms}ms")
-                
-                if has_utterance and utterance_audio:
-                    # Utterance complete - send to STT
-                    logger.info(f"Utterance ready for STT ({len(utterance_audio)} bytes)")
+                try:
+                    # Single STT call per utterance
+                    transcript = await stt_from_base64(audio_b64, language)
                     
-                    try:
-                        # Single STT call per utterance
-                        utterance_b64 = base64.b64encode(utterance_audio).decode()
-                        transcript = await stt_from_base64(utterance_b64, language)
+                    if not transcript or not transcript.strip():
+                        logger.info("STT returned empty transcript")
+                        continue
+                    
+                    # Improved filtering - allow short utterances
+                    clean_transcript = transcript.strip()
+                    
+                    # Check if it's just noise/filler words
+                    filler_words = {"thank you", "thanks", "okay", "ok", "hmm", "um", "uh", "err"}
+                    clean_lower = clean_transcript.lower()
+                    
+                    # Allow single word utterances and short responses from user
+                    # Only filter if it's ONLY filler words or single character
+                    if clean_lower in filler_words or len(clean_transcript) == 1:
+                        logger.info(f"Filtered out filler/noise: '{transcript}'")
+                        continue
+                    
+                    # Log valid transcript
+                    logger.info(f"Valid transcript: '{transcript}'")
+                    
+                    # Send final transcript to client
+                    await websocket.send_json({
+                        "event": "transcript_final",
+                        "text": transcript
+                    })
+                    
+                    # Process with LLM
+                    if agent:
+                        # Get orchestrator
+                        if agent.type == "real_estate":
+                            orchestrator = get_real_estate_orchestrator()
+                        else:
+                            orchestrator = get_orchestrator()
                         
-                        if not transcript or not transcript.strip():
-                            logger.info("STT returned empty transcript")
-                            continue
+                        # Create state
+                        state = ConversationState(
+                            user_message=transcript,
+                            tenant_id=str(tenant_id),
+                            agent_id=str(agent_id),
+                            agent_type=agent.type,
+                            conversation_id=str(conversation_id)
+                        )
                         
-                        # Improved filtering - allow short utterances
-                        clean_transcript = transcript.strip()
+                        # Execute flow (db_session is None for mock agent)
+                        state = await orchestrator.execute_flow(db_session, state)
                         
-                        # Check if it's just noise/filler words
-                        filler_words = {"thank you", "thanks", "okay", "ok", "hmm", "um", "uh", "err"}
-                        clean_lower = clean_transcript.lower()
-                        
-                        # Allow single word utterances and short responses from user
-                        # Only filter if it's ONLY filler words or single character
-                        if clean_lower in filler_words or len(clean_transcript) == 1:
-                            logger.info(f"Filtered out filler/noise: '{transcript}'")
-                            continue
-                        
-                        # Log valid transcript
-                        logger.info(f"Valid transcript: '{transcript}'")
-                        
-                        # Send partial transcript to client
-                        await websocket.send_json({
-                            "event": "transcript_partial",
-                            "text": transcript[:100]
-                        })
-                        
-                        # Process with LLM
-                        if agent:
-                            # Get orchestrator
-                            if agent.type == "real_estate":
-                                orchestrator = get_real_estate_orchestrator()
-                            else:
-                                orchestrator = get_orchestrator()
+                        # Ensure response is set
+                        if state.response:
+                            logger.info(f"LLM response: {state.response[:100]}")
                             
-                            # Create state
-                            state = ConversationState(
-                                user_message=transcript,
-                                tenant_id=str(tenant_id),
-                                agent_id=str(agent_id),
-                                agent_type=agent.type,
-                                conversation_id=str(conversation_id)
+                            # Synthesize response
+                            response_audio_b64 = await tts_to_base64(
+                                state.response,
+                                agent.voice,
+                                language
                             )
                             
-                            # Execute flow (db_session is None for mock agent)
-                            state = await orchestrator.execute_flow(db_session, state)
-                            
-                            # Ensure response is set
-                            if state.response:
-                                logger.info(f"LLM response: {state.response[:100]}")
-                                
-                                # Synthesize response
-                                response_audio_b64 = await tts_to_base64(
-                                    state.response,
-                                    agent.voice,
-                                    language
-                                )
-                                
-                                # Send audio response
-                                await websocket.send_json({
-                                    "event": "audio_response",
-                                    "data": response_audio_b64,
-                                    "text": state.response
-                                })
-                            else:
-                                logger.warning("No response generated from LLM")
-                    
-                    except Exception as e:
-                        logger.error(f"STT/LLM/TTS error: {str(e)}")
-                        await websocket.send_json({
-                            "event": "error",
-                            "message": f"Processing error: {str(e)}"
-                        })
+                            # Send audio response
+                            await websocket.send_json({
+                                "event": "audio_response",
+                                "data": response_audio_b64,
+                                "text": state.response
+                            })
+                        else:
+                            logger.warning("No response generated from LLM")
+                
+                except Exception as e:
+                    logger.error(f"STT/LLM/TTS error: {str(e)}")
+                    await websocket.send_json({
+                        "event": "error",
+                        "message": f"Processing error: {str(e)}"
+                    })
             
             elif message.get("event") == "end_stream":
-                # Client requesting stream end, flush any buffered audio
+                # Client requesting stream end
                 logger.info("End stream requested")
-                remaining_audio = vad.force_flush()
-                if remaining_audio:
-                    logger.info(f"Flushed remaining audio: {len(remaining_audio)} bytes")
                 break
             
-            elif message.get("event") == "force_flush":
-                # Force process buffered audio immediately (timeout-based)
-                logger.info("Force flush requested")
-                remaining_audio = vad.force_flush()
-                if remaining_audio:
-                    logger.info(f"Force flushed audio: {len(remaining_audio)} bytes")
+            elif message.get("type") == "start_listening":
+                # Client started listening
+                logger.info("Client started listening")
+                
+            elif message.get("type") == "stop_listening":
+                # Client stopped listening
+                logger.info("Client stopped listening")
     
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: {conversation_id}")
