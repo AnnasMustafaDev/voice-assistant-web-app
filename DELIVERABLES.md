@@ -2,7 +2,7 @@
 
 ## Overview
 
-Complete implementation of a multi-tenant AI voice agent platform with production-ready backend and modern React frontend. All components, documentation, and configuration files are included.
+Complete implementation of a multi-agent AI voice agent platform with production-ready backend and modern React frontend. All components, documentation, and configuration files are included.
 
 ---
 

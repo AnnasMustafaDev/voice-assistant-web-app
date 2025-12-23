@@ -6,9 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import json
 import base64
+import time
 from app.db.models import AgentModel
 from app.ai.voice.stt import stt_from_base64
 from app.ai.voice.tts import tts_to_base64
+from app.ai.voice.vad import SimpleVAD
 from app.ai.voice.streaming import (
     create_stream_context,
     get_stream_context,
@@ -35,6 +37,9 @@ async def voice_stream(websocket: WebSocket):
     stream_context = None
     db_session = None
     agent = None
+    vad = None
+    last_activity_time = time.time()
+    websocket_timeout = 30  # 30 second timeout
     
     try:
         # Wait for initial connection message
@@ -57,7 +62,7 @@ async def voice_stream(websocket: WebSocket):
             })
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-            
+        
         # Initialize agent
         if agent_id == "receptionist-1" or tenant_id == "demo-tenant":
             # Use mock agent for demo
@@ -78,6 +83,14 @@ async def voice_stream(websocket: WebSocket):
         
         stream_context = create_stream_context(conversation_id, language)
         
+        # Initialize VAD for audio batching
+        vad = SimpleVAD(
+            silence_threshold=500,
+            silence_duration_ms=800,  # 0.8s silence ends utterance
+            min_utterance_duration_ms=300  # 300ms minimum speech
+        )
+        logger.info(f"VAD initialized with 800ms silence detection")
+        
         # Send ready signal
         await websocket.send_json({
             "event": "ready",
@@ -86,74 +99,129 @@ async def voice_stream(websocket: WebSocket):
         
         # Process incoming audio chunks
         while True:
-            data = await websocket.receive_text()
-            message = json.loads(data)
+            last_activity_time = time.time()
+            
+            try:
+                data = await websocket.receive_text()
+                message = json.loads(data)
+            except Exception as e:
+                logger.error(f"Failed to receive message: {str(e)}")
+                break
             
             if message.get("event") == "audio_chunk":
                 audio_b64 = message.get("data")
                 if not audio_b64:
                     continue
                 
-                # Transcribe audio
+                # Decode base64 audio chunk
                 try:
-                    transcript = await stt_from_base64(audio_b64, language)
-                    
-                    # Filter out hallucinations
-                    clean_transcript = transcript.strip().lower()
-                    if not clean_transcript or \
-                       clean_transcript in ["thank you.", "thank you", "you", "you.", "thanks.", "thanks"] or \
-                       len(clean_transcript) < 2:
-                        logger.info(f"Ignored hallucination/noise: {transcript}")
-                        continue
-
-                    # Send partial transcript
-                    await websocket.send_json({
-                        "event": "transcript_partial",
-                        "text": transcript[:100]  # Send first 100 chars as partial
-                    })
-                    
-                    # Process with LLM
-                    if agent:
-                        # Get orchestrator
-                        if agent.type == "real_estate":
-                            orchestrator = get_real_estate_orchestrator()
-                        else:
-                            orchestrator = get_orchestrator()
-                        
-                        # Create state
-                        state = ConversationState(
-                            user_message=transcript,
-                            tenant_id=str(tenant_id),
-                            agent_id=str(agent_id),
-                            agent_type=agent.type,
-                            conversation_id=str(conversation_id)
-                        )
-                        
-                        # Execute flow
-                        # Note: db_session is None here, orchestrator should handle it or we need to mock it
-                        state = await orchestrator.execute_flow(db_session, state)
-                        
-                        # Synthesize response
-                        response_audio_b64 = await tts_to_base64(
-                            state.response,
-                            agent.voice,
-                            language
-                        )
-                        
-                        # Send audio response
-                        await websocket.send_json({
-                            "event": "audio_response",
-                            "data": response_audio_b64
-                        })
+                    audio_bytes = base64.b64decode(audio_b64)
                 except Exception as e:
-                    logger.error(f"Error processing audio: {str(e)}")
-                    await websocket.send_json({
-                        "event": "error",
-                        "message": f"Processing error: {str(e)}"
-                    })
+                    logger.error(f"Base64 decode error: {str(e)}")
+                    continue
+                
+                # Process with VAD - returns complete utterance when ready
+                has_utterance, utterance_audio = vad.process_chunk(audio_bytes)
+                
+                buffer_size_ms = vad.get_buffer_size_ms()
+                logger.info(f"Audio buffered: {buffer_size_ms}ms")
+                
+                if has_utterance and utterance_audio:
+                    # Utterance complete - send to STT
+                    logger.info(f"Utterance ready for STT ({len(utterance_audio)} bytes)")
+                    
+                    try:
+                        # Single STT call per utterance
+                        utterance_b64 = base64.b64encode(utterance_audio).decode()
+                        transcript = await stt_from_base64(utterance_b64, language)
+                        
+                        if not transcript or not transcript.strip():
+                            logger.info("STT returned empty transcript")
+                            continue
+                        
+                        # Improved filtering - allow short utterances
+                        clean_transcript = transcript.strip()
+                        
+                        # Check if it's just noise/filler words
+                        filler_words = {"thank you", "thanks", "okay", "ok", "hmm", "um", "uh", "err"}
+                        clean_lower = clean_transcript.lower()
+                        
+                        # Allow single word utterances and short responses from user
+                        # Only filter if it's ONLY filler words or single character
+                        if clean_lower in filler_words or len(clean_transcript) == 1:
+                            logger.info(f"Filtered out filler/noise: '{transcript}'")
+                            continue
+                        
+                        # Log valid transcript
+                        logger.info(f"Valid transcript: '{transcript}'")
+                        
+                        # Send partial transcript to client
+                        await websocket.send_json({
+                            "event": "transcript_partial",
+                            "text": transcript[:100]
+                        })
+                        
+                        # Process with LLM
+                        if agent:
+                            # Get orchestrator
+                            if agent.type == "real_estate":
+                                orchestrator = get_real_estate_orchestrator()
+                            else:
+                                orchestrator = get_orchestrator()
+                            
+                            # Create state
+                            state = ConversationState(
+                                user_message=transcript,
+                                tenant_id=str(tenant_id),
+                                agent_id=str(agent_id),
+                                agent_type=agent.type,
+                                conversation_id=str(conversation_id)
+                            )
+                            
+                            # Execute flow (db_session is None for mock agent)
+                            state = await orchestrator.execute_flow(db_session, state)
+                            
+                            # Ensure response is set
+                            if state.response:
+                                logger.info(f"LLM response: {state.response[:100]}")
+                                
+                                # Synthesize response
+                                response_audio_b64 = await tts_to_base64(
+                                    state.response,
+                                    agent.voice,
+                                    language
+                                )
+                                
+                                # Send audio response
+                                await websocket.send_json({
+                                    "event": "audio_response",
+                                    "data": response_audio_b64,
+                                    "text": state.response
+                                })
+                            else:
+                                logger.warning("No response generated from LLM")
+                    
+                    except Exception as e:
+                        logger.error(f"STT/LLM/TTS error: {str(e)}")
+                        await websocket.send_json({
+                            "event": "error",
+                            "message": f"Processing error: {str(e)}"
+                        })
             
             elif message.get("event") == "end_stream":
+                # Client requesting stream end, flush any buffered audio
+                logger.info("End stream requested")
+                remaining_audio = vad.force_flush()
+                if remaining_audio:
+                    logger.info(f"Flushed remaining audio: {len(remaining_audio)} bytes")
                 break
+            
+            elif message.get("event") == "force_flush":
+                # Force process buffered audio immediately (timeout-based)
+                logger.info("Force flush requested")
+                remaining_audio = vad.force_flush()
+                if remaining_audio:
+                    logger.info(f"Force flushed audio: {len(remaining_audio)} bytes")
     
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: {conversation_id}")

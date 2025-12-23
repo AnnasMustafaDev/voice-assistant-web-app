@@ -194,7 +194,18 @@ class ConversationOrchestrator:
             return state
         except Exception as e:
             logger.error(f"Response generation error: {str(e)}")
-            state.response = "I apologize, I'm having trouble processing your request. Could you please rephrase?"
+            # Provide context-aware fallback responses based on detected intent
+            fallback_responses = {
+                IntentType.BOOKING: "I'd be happy to help you with a booking. Could you please provide me with your preferred date and time?",
+                IntentType.PRICING: "Our pricing varies based on the service. Let me check the current rates for you. What specific service are you interested in?",
+                IntentType.LEAD_CAPTURE: "Thank you for contacting us. Could you please provide your name and phone number so we can follow up with you?",
+                IntentType.ESCALATION: "I understand you'd like to speak with an agent. Let me connect you with someone who can better assist you.",
+                IntentType.FAQ: "That's a great question. Let me provide you with more information about that.",
+            }
+            state.response = fallback_responses.get(
+                state.intent,
+                "I apologize, I'm having trouble processing your request. Could you please rephrase?"
+            )
             return state
     
     def validate_response(self, state: ConversationState) -> ConversationState:
@@ -232,7 +243,7 @@ class ConversationOrchestrator:
         state = await self.check_cache(state)
         
         if not state.cache_hit:
-            state = await self.retrieve_context(db, state)
+#            state = await self.retrieve_context(db, state)
             state = await self.generate_response(state)
         
         state = self.validate_response(state)

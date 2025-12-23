@@ -33,7 +33,7 @@ A full-stack AI voice agent platform with production-ready backend and modern Re
 ## 🎯 Core Features Implemented
 
 ### Backend Features ✅
-- [x] Multi-tenant architecture with complete data isolation
+- [x] Multi-agent architecture with complete data isolation
 - [x] 6 database models with proper relationships
 - [x] 20+ REST API endpoints with validation
 - [x] WebSocket support for real-time voice streaming

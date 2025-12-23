@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers the integration of the Reception Voice Agent platform - a complete multi-tenant AI voice conversation system with backend (FastAPI) and frontend (React/TypeScript) components.
+This guide covers the integration of the Reception Voice Agent platform - a complete multi-agent AI voice conversation system with backend (FastAPI) and frontend (React/TypeScript) components.
 
 ## Architecture
 
