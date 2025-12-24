@@ -229,15 +229,21 @@ function App() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex-1 flex flex-col items-center justify-center w-full max-w-2xl"
+          className="flex-1 flex flex-col items-center justify-start w-full max-w-2xl gap-26 -mt-8"
         >
-          {/* Voice Bubble - click to toggle listening (for alternative UI) */}
-          <VoiceBubble
-            isActive={isListening}
-          />
+          {/* Voice Bubble - moved up */}
+          <motion.div
+            initial={{ y: 20 }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <VoiceBubble
+              isActive={isListening}
+            />
+          </motion.div>
 
-          {/* Transcript */}
-          <div className="mt-12 md:mt-16 w-full px-4 z-40">
+          {/* Transcript - below voice bubble, above buttons */}
+          <div className="w-full px-4 z-40">
             <Transcript />
           </div>
 

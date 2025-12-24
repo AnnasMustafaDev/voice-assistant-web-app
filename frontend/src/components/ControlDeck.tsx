@@ -82,54 +82,8 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
 
   return (
     <div className="fixed bottom-8 left-0 right-0 flex flex-col gap-6 items-center z-50 pointer-events-none">
-      {/* Record Button - Simple, clean design */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        disabled={!isConnected}
-        className={`
-          pointer-events-auto
-          ${glassButtonClass}
-          min-w-[180px] py-4
-          ${isPushDown ? 'bg-red-500/20 border-red-500/30 scale-95' : 'hover:scale-105'}
-        `}
-      >
-        <div className="flex items-center justify-center gap-2">
-          <div className={`w-2 h-2 rounded-full transition-all ${isPushDown ? 'bg-red-400 animate-pulse' : 'bg-neon-400'}`} />
-          <span>{isPushDown ? '🎙 Recording' : '🎤 Hold to Record'}</span>
-        </div>
-      </motion.button>
-
       {/* Control Buttons Row */}
       <div className="pointer-events-auto flex gap-3 p-3 rounded-3xl bg-black bg-opacity-20 backdrop-blur-md border border-white border-opacity-5 relative">
-        {/* Chat Preview - One sentence above buttons */}
-        {transcript.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-72"
-          >
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsChatOpen(true)}
-              className="w-full px-4 py-2 rounded-xl
-                bg-white bg-opacity-10 backdrop-blur-lg
-                border border-white border-opacity-20
-                hover:bg-opacity-20 transition-all
-                text-white text-xs text-center truncate
-                font-medium pointer-events-auto"
-            >
-              <span className="opacity-60">Latest: </span>
-              {transcript[transcript.length - 1]?.text}
-            </motion.button>
-          </motion.div>
-        )}
-
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={() => {
@@ -141,6 +95,27 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
           ⏹ Stop
         </motion.button>
 
+        {/* Record Button - Between Stop and Clear */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          disabled={!isConnected}
+          className={`
+            pointer-events-auto
+            ${glassButtonClass}
+            ${isPushDown ? 'bg-red-500/20 border-red-500/30 scale-95' : 'hover:scale-105'}
+          `}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <div className={`w-2 h-2 rounded-full transition-all ${isPushDown ? 'bg-red-400 animate-pulse' : 'bg-neon-400'}`} />
+            <span>{isPushDown ? '🎙 Recording' : '🎤 Hold'}</span>
+          </div>
+        </motion.button>
+
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={onClear}
@@ -148,15 +123,6 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
           className={`${glassButtonClass}`}
         >
           Clear
-        </motion.button>
-
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          disabled={!isConnected || transcript.length === 0}
-          className={`${glassButtonClass}`}
-        >
-          💬 {isChatOpen ? 'Hide' : 'Show'}
         </motion.button>
       </div>
 

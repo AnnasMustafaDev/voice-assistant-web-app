@@ -1,274 +1,279 @@
-"""LangGraph orchestration for conversation flows."""
+"""Voice-first conversation orchestration (simplified for real-time voice)."""
 
-from typing import Dict, List, Optional, Any, Annotated
+from typing import Dict, List, Optional
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from app.ai.groq_client import get_groq_client
-from app.ai.rag.retriever import get_retriever
-from app.ai.rag.cache import get_cag
 from app.ai.prompts.system_prompts import get_system_prompt
 from app.core.logging import logger
 
-try:
-    from langgraph.graph import StateGraph
-    HAS_LANGGRAPH = True
-except ImportError:
-    HAS_LANGGRAPH = False
-    logger.warning("LangGraph not installed, using simplified orchestration")
-
 
 class IntentType(str, Enum):
-    """Intent classification types."""
+    """Voice-specific intent types."""
     BOOKING = "booking"
-    FAQ = "faq"
     PRICING = "pricing"
     LEAD_CAPTURE = "lead_capture"
     ESCALATION = "escalation"
     UNKNOWN = "unknown"
 
 
+# Acknowledgement filter: trivial utterances that need no LLM processing
+ACKNOWLEDGEMENT_WORDS = {
+    "thank you", "thanks", "thankyou",
+    "ok", "okay", "okayed",
+    "yes", "yeah", "yep", "sure", "certainly",
+    "no", "nope",
+    "hmm", "uh", "um", "uh-huh", "uhuh",
+    "got it", "gotit",
+    "thanks so much", "thank you so much"
+}
+
+# Acknowledgement responses: polite, brief closings
+ACKNOWLEDGEMENT_RESPONSES = {
+    "thank you": "You're welcome! Feel free to reach out if you need anything else.",
+    "thanks": "My pleasure! Don't hesitate to ask if you need help.",
+    "ok": "Great, I'm here if you need anything else.",
+    "okay": "Perfect! Let me know if there's anything else I can help with.",
+    "yes": "Excellent! Is there anything else I can assist you with?",
+    "no": "Understood. Feel free to contact us if you need anything.",
+}
+
+
 @dataclass
-class ConversationState:
-    """State for conversation flow."""
+class VoiceConversationState:
+    """Minimal state for real-time voice conversations."""
     # Input
-    user_message: str
+    user_utterance: str
     
-    # Context
+    # Context (session-specific)
     tenant_id: str
     agent_id: str
-    agent_type: str
     conversation_id: str
+    language: str = "en"  # Lock language per session
     
     # Processing
-    intent: Optional[IntentType] = None
-    context_documents: List[Dict] = field(default_factory=list)
-    cache_hit: bool = False
-    cached_response: Optional[str] = None
+    intent: IntentType = IntentType.UNKNOWN
+    is_acknowledgement: bool = False
     
     # Output
     response: Optional[str] = None
-    requires_escalation: bool = False
     
-    # History
-    messages: List[Dict] = field(default_factory=list)
+    # Flags
+    requires_escalation: bool = False
 
 
 class ConversationOrchestrator:
-    """Orchestrates conversation flow using LangGraph-like pattern."""
+    """Simplified orchestrator for real-time voice conversations."""
     
     def __init__(self):
         """Initialize orchestrator."""
         self.groq_client = get_groq_client()
-        self.retriever = get_retriever()
-        self.cag = get_cag()
     
-    async def classify_intent(self, state: ConversationState) -> ConversationState:
+    # ========== STAGE 1: Acknowledgement Filter ==========
+    async def filter_acknowledgements(self, state: VoiceConversationState) -> VoiceConversationState:
         """
-        Classify user intent.
+        MANDATORY FIRST STEP: Detect and handle trivial utterances.
         
-        Node: IntentClassifier
+        Examples: "thank you", "ok", "yes", "no"
+        
+        These should NOT trigger intent classification, LLM, or caching.
+        Respond with a brief, polite closing line instead.
         """
-        try:
-            # Quick heuristic-based intent classification
-            message_lower = state.user_message.lower()
-            
-            if any(word in message_lower for word in ["book", "reserve", "table", "reservation"]):
-                state.intent = IntentType.BOOKING
-            elif any(word in message_lower for word in ["price", "cost", "how much", "fee"]):
-                state.intent = IntentType.PRICING
-            elif any(word in message_lower for word in ["contact", "phone", "email", "call", "speaking"]):
-                state.intent = IntentType.LEAD_CAPTURE
-            elif any(word in message_lower for word in ["help", "human", "agent", "support"]):
-                state.intent = IntentType.ESCALATION
-            else:
-                state.intent = IntentType.FAQ
-            
-            logger.info(f"Intent classified: {state.intent.value}")
+        utterance_lower = state.user_utterance.lower().strip()
+        word_count = len(utterance_lower.split())
+        
+        # Rule: Short utterance (≤2 words) that matches acknowledgements
+        if word_count <= 2 and utterance_lower in ACKNOWLEDGEMENT_WORDS:
+            state.is_acknowledgement = True
+            state.response = ACKNOWLEDGEMENT_RESPONSES.get(
+                utterance_lower,
+                "Thank you! Is there anything else I can help you with?"
+            )
+            logger.info(f"[FILTER] Acknowledgement detected: '{utterance_lower}' → short response")
             return state
+        
+        logger.info(f"[FILTER] Not an acknowledgement: '{utterance_lower}' (passed to intent classification)")
+        return state
+    
+    # ========== STAGE 2: Simplified Intent Classification ==========
+    async def classify_intent(self, state: VoiceConversationState) -> VoiceConversationState:
+        """
+        Simplified intent classification for voice.
+        
+        Only classifies:
+        - booking
+        - pricing
+        - lead_capture
+        - escalation
+        - UNKNOWN (triggers clarifying question)
+        
+        Uses keyword heuristics, no ML/RAG.
+        """
+        # Skip if already acknowledged
+        if state.is_acknowledgement:
+            return state
+        
+        try:
+            utterance_lower = state.user_utterance.lower()
+            
+            # Booking intent
+            if any(word in utterance_lower for word in ["book", "reserve", "table", "reservation", "appointment"]):
+                state.intent = IntentType.BOOKING
+                logger.info(f"[INTENT] BOOKING detected")
+            
+            # Pricing intent
+            elif any(word in utterance_lower for word in ["price", "cost", "how much", "fee", "rate", "charge"]):
+                state.intent = IntentType.PRICING
+                logger.info(f"[INTENT] PRICING detected")
+            
+            # Lead capture intent
+            elif any(word in utterance_lower for word in ["contact", "phone", "email", "call", "call me", "reach"]):
+                state.intent = IntentType.LEAD_CAPTURE
+                logger.info(f"[INTENT] LEAD_CAPTURE detected")
+            
+            # Escalation intent
+            elif any(word in utterance_lower for word in ["help", "human", "agent", "support", "manager", "supervisor"]):
+                state.intent = IntentType.ESCALATION
+                logger.info(f"[INTENT] ESCALATION detected")
+            
+            # Default: UNKNOWN
+            else:
+                state.intent = IntentType.UNKNOWN
+                logger.info(f"[INTENT] UNKNOWN - will ask clarifying question")
+            
+            return state
+        
         except Exception as e:
-            logger.error(f"Intent classification error: {str(e)}")
+            logger.error(f"[INTENT] Classification error: {str(e)}")
             state.intent = IntentType.UNKNOWN
             return state
     
-    async def check_cache(self, state: ConversationState) -> ConversationState:
+    # ========== STAGE 3: LLM Response Generation ==========
+    async def generate_response(self, state: VoiceConversationState) -> VoiceConversationState:
         """
-        Check if response is cached.
+        Generate response via LLM.
         
-        Node: CacheCheck (CAG)
-        """
-        try:
-            cached = await self.cag.get(
-                state.tenant_id,
-                state.agent_id,
-                state.user_message
-            )
-            
-            if cached:
-                state.cache_hit = True
-                state.cached_response = cached
-                logger.info("Cache hit!")
-            
-            return state
-        except Exception as e:
-            logger.error(f"Cache check error: {str(e)}")
-            return state
-    
-    async def retrieve_context(
-        self,
-        db,
-        state: ConversationState
-    ) -> ConversationState:
-        """
-        Retrieve relevant documents from knowledge base.
+        Direct call to Groq API with:
+        - System prompt based on intent
+        - User utterance
+        - NO RAG, NO caching, NO history
         
-        Node: RAGRetriever
+        For voice: keep responses short (< 500 chars)
         """
-        try:
-            docs = await self.retriever.retrieve(
-                db,
-                state.tenant_id,
-                state.user_message,
-                top_k=3
-            )
-            
-            state.context_documents = [
-                {
-                    "title": doc.title,
-                    "source": doc.source,
-                    "content": doc.content[:500]
-                }
-                for doc in docs
-            ]
-            
-            logger.info(f"Retrieved {len(docs)} context documents")
-            return state
-        except Exception as e:
-            logger.error(f"Context retrieval error: {str(e)}")
-            return state
-    
-    async def generate_response(
-        self,
-        state: ConversationState
-    ) -> ConversationState:
-        """
-        Generate LLM response.
-        
-        Node: LLMResponse
-        """
-        if state.cache_hit:
-            # Use cached response
-            state.response = state.cached_response
+        # Skip if already responded (acknowledgement or escalation)
+        if state.response or state.is_acknowledgement:
             return state
         
         try:
-            # Build system prompt
-            system_prompt = get_system_prompt(
-                state.agent_type,
-                context=self._format_context(state.context_documents)
-            )
+            # Build system prompt based on intent
+            system_prompt = self._get_system_prompt_for_intent(state.intent, state.language)
             
-            # Add conversation history
-            history = [
-                {"role": msg["role"], "content": msg["content"]}
-                for msg in state.messages[-4:]  # Last 2 turns
-            ]
+            logger.info(f"[LLM] Generating response for intent={state.intent.value}, lang={state.language}")
             
-            # Generate response
+            # Call LLM
             response = await self.groq_client.generate_response(
                 system_prompt=system_prompt,
-                user_message=state.user_message,
-                conversation_history=history
+                user_message=state.user_utterance,
+                conversation_history=[]  # No history for voice
             )
             
             state.response = response
-            
-            # Cache the response
-            await self.cag.set(
-                state.tenant_id,
-                state.agent_id,
-                state.user_message,
-                response
-            )
-            
-            logger.info("Response generated and cached")
+            logger.info(f"[LLM] Response generated: {response[:80]}...")
             return state
+        
         except Exception as e:
-            logger.error(f"Response generation error: {str(e)}")
-            # Provide context-aware fallback responses based on detected intent
-            fallback_responses = {
-                IntentType.BOOKING: "I'd be happy to help you with a booking. Could you please provide me with your preferred date and time?",
-                IntentType.PRICING: "Our pricing varies based on the service. Let me check the current rates for you. What specific service are you interested in?",
-                IntentType.LEAD_CAPTURE: "Thank you for contacting us. Could you please provide your name and phone number so we can follow up with you?",
-                IntentType.ESCALATION: "I understand you'd like to speak with an agent. Let me connect you with someone who can better assist you.",
-                IntentType.FAQ: "That's a great question. Let me provide you with more information about that.",
-            }
-            state.response = fallback_responses.get(
-                state.intent,
-                "I apologize, I'm having trouble processing your request. Could you please rephrase?"
-            )
+            logger.error(f"[LLM] Generation error: {str(e)}")
+            # Fallback based on intent
+            state.response = self._get_fallback_response(state.intent)
+            logger.info(f"[LLM] Using fallback: {state.response[:80]}...")
             return state
     
-    def validate_response(self, state: ConversationState) -> ConversationState:
+    # ========== STAGE 4: Validation (Passive) ==========
+    def validate_response(self, state: VoiceConversationState) -> VoiceConversationState:
         """
-        Validate response before returning.
+        Passive validation: only check response exists.
         
-        Node: Validation
+        RULE: Never replace a valid response with fallback.
+        Escalation flag should NOT modify message content.
         """
         if not state.response:
-            state.response = "I'm not sure how to help with that. Could you provide more details?"
+            # Only assign fallback if no response at all
+            state.response = "I'm here to help. Could you please rephrase your question?"
+            logger.info(f"[VALIDATE] No response - using generic fallback")
         
-        # Check if response requires escalation
+        # Check escalation (informational only, doesn't change response)
         if state.intent == IntentType.ESCALATION:
             state.requires_escalation = True
+            logger.info(f"[VALIDATE] Escalation flagged - response will be routed")
         
-        logger.info("Response validated")
+        logger.info(f"[VALIDATE] Response validated, length={len(state.response)} chars")
         return state
     
-    async def execute_flow(
-        self,
-        db,
-        state: ConversationState
-    ) -> ConversationState:
+    # ========== EXECUTION ==========
+    async def process_utterance(self, state: VoiceConversationState) -> VoiceConversationState:
         """
-        Execute full conversation flow.
+        Main orchestration flow (voice-first).
         
-        Flow:
-        START → IntentClassifier → CacheCheck → RAGRetriever → 
-        LLMResponse → Validation → END
+        STT → Utterance Filter → Intent Lite → LLM → Validate → TTS
+        
+        Each step logs clearly:
+        - utterance filtered
+        - intent detected
+        - response generated
         """
-        logger.info(f"Starting conversation flow for message: {state.user_message[:50]}")
+        logger.info(f"[FLOW] Starting: '{state.user_utterance}' (tenant={state.tenant_id}, lang={state.language})")
         
-        # Execute nodes in sequence
-        state = await self.classify_intent(state)
-        state = await self.check_cache(state)
+        # Step 1: Filter acknowledgements (must be first)
+        state = await self.filter_acknowledgements(state)
         
-        if not state.cache_hit:
-#            state = await self.retrieve_context(db, state)
+        # Step 2: Classify intent (skipped if acknowledgement)
+        if not state.is_acknowledgement:
+            state = await self.classify_intent(state)
+        
+        # Step 3: Generate response (skipped if already responded)
+        if not state.response:
             state = await self.generate_response(state)
         
+        # Step 4: Validate (always run)
         state = self.validate_response(state)
         
-        logger.info(f"Conversation flow complete. Response: {state.response[:100]}")
+        logger.info(f"[FLOW] Complete: intent={state.intent.value}, ack={state.is_acknowledgement}, escalate={state.requires_escalation}")
         return state
     
-    def _format_context(self, documents: List[Dict]) -> str:
-        """Format context documents for prompt."""
-        if not documents:
-            return ""
+    # ========== HELPER METHODS ==========
+    def _get_system_prompt_for_intent(self, intent: IntentType, language: str) -> str:
+        """Get appropriate system prompt for intent."""
+        base_prompt = get_system_prompt("receptionist", language=language)
         
-        formatted = "Available context:\n"
-        for doc in documents:
-            formatted += f"\n- {doc['title']} ({doc['source']}):\n{doc['content'][:200]}...\n"
+        # Add intent-specific guidance
+        intent_guidance = {
+            IntentType.BOOKING: "\nThe user is asking about making a reservation or booking.",
+            IntentType.PRICING: "\nThe user is asking about pricing or costs.",
+            IntentType.LEAD_CAPTURE: "\nThe user wants to be contacted. Ask for their preferred contact method and time.",
+            IntentType.ESCALATION: "\nThe user wants to speak with a human agent. Acknowledge and prepare for handoff.",
+            IntentType.UNKNOWN: "\nYou're not sure what the user wants. Ask a clarifying question to understand their need.",
+        }
         
-        return formatted
+        return base_prompt + intent_guidance.get(intent, "")
+    
+    def _get_fallback_response(self, intent: IntentType) -> str:
+        """Get fallback response for intent."""
+        fallbacks = {
+            IntentType.BOOKING: "I'd be happy to help with a booking. Could you tell me what date and time you're interested in?",
+            IntentType.PRICING: "Our pricing depends on the specific service. What would you like to know more about?",
+            IntentType.LEAD_CAPTURE: "I'd love to follow up with you. Could you provide your contact information?",
+            IntentType.ESCALATION: "Let me connect you with a team member who can better assist you.",
+            IntentType.UNKNOWN: "I want to make sure I understand correctly. Could you give me more details about what you need?",
+        }
+        return fallbacks.get(intent, "How can I help you today?")
 
 
-# Global orchestrator
+# Global orchestrator singleton
 _orchestrator = None
 
 
 def get_orchestrator() -> ConversationOrchestrator:
-    """Get or create orchestrator."""
+    """Get or create global orchestrator instance."""
     global _orchestrator
     if _orchestrator is None:
         _orchestrator = ConversationOrchestrator()
