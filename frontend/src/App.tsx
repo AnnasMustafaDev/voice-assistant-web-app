@@ -229,7 +229,7 @@ function App() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex-1 flex flex-col items-center justify-start w-full max-w-2xl gap-26 -mt-8"
+          className="flex-1 flex flex-col items-center justify-start w-full max-w-2xl gap-26 "
         >
           {/* Voice Bubble - moved up */}
           <motion.div
