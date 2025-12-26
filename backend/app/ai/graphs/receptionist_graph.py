@@ -74,7 +74,7 @@ class ConversationOrchestrator:
         """
         MANDATORY FIRST STEP: Detect and handle trivial utterances.
         
-        Examples: "thank you", "ok", "yes"
+        Examples: "thank you", "ok", "yes" , etc.
         
         Respond with a brief, polite closing line instead.
         """
