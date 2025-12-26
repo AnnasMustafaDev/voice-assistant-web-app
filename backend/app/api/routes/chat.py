@@ -9,10 +9,9 @@ from app.db.models import AgentModel, ConversationModel
 from app.services.conversations import get_conversation_service
 from app.ai.graphs.receptionist_graph import (
     get_orchestrator,
-    ConversationState,
+    VoiceConversationState,
     IntentType
 )
-from app.ai.graphs.real_estate_graph import get_real_estate_orchestrator
 from app.core.deps import get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -63,26 +62,18 @@ async def send_chat_message(
         )
         
         # Prepare state
-        state = ConversationState(
-            user_message=request.message,
+        state = VoiceConversationState(
+            user_utterance=request.message,
             tenant_id=str(request.tenant_id),
             agent_id=str(request.agent_id),
-            agent_type=agent.type,
-            conversation_id=str(conversation.id),
-            messages=[
-                {"role": m.role, "content": m.content}
-                for m in history[:-1]  # Exclude the message we just added
-            ]
+            conversation_id=str(conversation.id)
         )
         
-        # Get orchestrator based on agent type
-        if agent.type == "real_estate":
-            orchestrator = get_real_estate_orchestrator()
-        else:
-            orchestrator = get_orchestrator()
+        # Get orchestrator
+        orchestrator = get_orchestrator()
         
         # Execute conversation flow
-        state = await orchestrator.execute_flow(db, state)
+        state = await orchestrator.process_utterance(state)
         
         # Add agent response
         agent_msg = await conversation_service.add_message(

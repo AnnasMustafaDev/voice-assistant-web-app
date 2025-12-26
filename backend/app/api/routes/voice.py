@@ -19,9 +19,8 @@ from app.ai.voice.streaming import (
 from app.services.conversations import get_conversation_service
 from app.ai.graphs.receptionist_graph import (
     get_orchestrator,
-    ConversationState
+    VoiceConversationState
 )
-from app.ai.graphs.real_estate_graph import get_real_estate_orchestrator
 from app.core.deps import get_db
 from app.core.logging import logger
 
@@ -156,22 +155,18 @@ async def voice_stream(websocket: WebSocket):
                     # Process with LLM
                     if agent:
                         # Get orchestrator
-                        if agent.type == "real_estate":
-                            orchestrator = get_real_estate_orchestrator()
-                        else:
-                            orchestrator = get_orchestrator()
+                        orchestrator = get_orchestrator()
                         
                         # Create state
-                        state = ConversationState(
-                            user_message=transcript,
+                        state = VoiceConversationState(
+                            user_utterance=transcript,
                             tenant_id=str(tenant_id),
                             agent_id=str(agent_id),
-                            agent_type=agent.type,
                             conversation_id=str(conversation_id)
                         )
                         
                         # Execute flow (db_session is None for mock agent)
-                        state = await orchestrator.execute_flow(db_session, state)
+                        state = await orchestrator.process_utterance(state)
                         
                         # Ensure response is set
                         if state.response:
