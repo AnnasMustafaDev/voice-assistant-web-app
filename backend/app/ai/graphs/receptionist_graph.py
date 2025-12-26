@@ -74,7 +74,7 @@ class ConversationOrchestrator:
         """
         MANDATORY FIRST STEP: Detect and handle trivial utterances.
         
-        Examples: "thank you", "ok", "yes", "no"
+        Examples: "thank you", "ok", "yes", "no" 
         
         These should NOT trigger intent classification, LLM, or caching.
         Respond with a brief, polite closing line instead.
