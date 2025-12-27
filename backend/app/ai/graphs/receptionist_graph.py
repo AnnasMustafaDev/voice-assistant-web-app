@@ -76,7 +76,6 @@ class ConversationOrchestrator:
         
         Examples: "thank you", "ok", "yes", "no" 
         
-        These should NOT trigger intent classification, LLM, or caching.
         Respond with a brief, polite closing line instead.
         """
         utterance_lower = state.user_utterance.lower().strip()
