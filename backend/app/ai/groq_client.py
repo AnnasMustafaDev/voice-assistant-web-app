@@ -101,7 +101,7 @@ class GroqClient:
     async def synthesize_speech(
         self,
         text: str,
-        voice: str = "en-US-Neural2-A",
+        voice: str = "diana",
         language: str = "en",
     ) -> bytes:
         """

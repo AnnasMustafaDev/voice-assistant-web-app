@@ -9,7 +9,7 @@ settings = get_settings()
 
 async def tts_to_bytes(
     text: str,
-    voice: str = "en-US-Neural2-A",
+    voice: str = "diana",
     language: str = "en"
 ) -> bytes:
     """
@@ -29,7 +29,7 @@ async def tts_to_bytes(
 
 async def tts_to_base64(
     text: str,
-    voice: str = "en-US-Neural2-A",
+    voice: str = "diana",
     language: str = "en"
 ) -> str:
     """
@@ -53,7 +53,7 @@ async def tts_to_base64(
 
 async def tts_stream(
     text: str,
-    voice: str = "en-US-Neural2-A",
+    voice: str = "diana",
     language: str = "en"
 ) -> AsyncIterator[bytes]:
     """

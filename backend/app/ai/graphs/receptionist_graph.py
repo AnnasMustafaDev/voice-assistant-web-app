@@ -242,7 +242,7 @@ class ConversationOrchestrator:
     # ========== HELPER METHODS ==========
     def _get_system_prompt_for_intent(self, intent: IntentType, language: str) -> str:
         """Get appropriate system prompt for intent."""
-        base_prompt = get_system_prompt("receptionist", language=language)
+        base_prompt = get_system_prompt("receptionist")
         
         # Add intent-specific guidance
         intent_guidance = {

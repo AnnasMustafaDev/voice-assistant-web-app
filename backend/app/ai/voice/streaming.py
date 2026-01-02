@@ -14,7 +14,7 @@ class AudioStreamHandler:
         on_transcript: Optional[Callable] = None,
         on_response: Optional[Callable] = None,
         language: str = "en",
-        voice: str = "en-US-Neural2-A",
+        voice: str = "diana",
     ):
         """
         Initialize audio stream handler.

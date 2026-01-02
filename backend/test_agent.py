@@ -109,7 +109,7 @@ def text_to_speech(text):
     print("🔊 Speaking...")
     audio = client.audio.speech.create(
         model=TTS_MODEL,
-        voice="Aaliyah-PlayAI",
+        voice="diana",
         input=text,
         response_format="wav"
     )
