@@ -176,6 +176,63 @@ class VoiceAgent:
                                 "timestamp": time.time()
                             })
                 
+                elif event == "finalize":
+                    # Client released button - process any buffered audio immediately
+                    print(f"[VoiceAgent] Finalize signal received, buffer size: {len(self.audio_buffer)} bytes")
+                    
+                    if len(self.audio_buffer) > 0:
+                        # Transcribe the buffered audio immediately
+                        transcript = await self.transcribe_audio()
+                        
+                        if transcript:
+                            print(f"[VoiceAgent] Transcribed: {transcript}")
+                            
+                            # Send transcript
+                            await self.send_message("user_transcript", {
+                                "text": transcript,
+                                "timestamp": time.time()
+                            })
+                            
+                            # Process and get response
+                            response_text = await self.process_user_input(transcript)
+                            
+                            if response_text:
+                                print(f"[VoiceAgent] Response: {response_text}")
+                                
+                                # Send response transcript
+                                await self.send_message("assistant_transcript", {
+                                    "text": response_text,
+                                    "timestamp": time.time()
+                                })
+                                
+                                # Send audio response
+                                chunk_num = 0
+                                async for audio_chunk in self.synthesize_response(response_text):
+                                    audio_b64 = base64.b64encode(audio_chunk).decode("utf-8")
+                                    await self.send_message("audio", {
+                                        "audio": audio_b64,
+                                        "chunk_num": chunk_num,
+                                        "timestamp": time.time()
+                                    })
+                                    chunk_num += 1
+                                
+                                # Send completion signal
+                                await self.send_message("audio_complete", {
+                                    "timestamp": time.time()
+                                })
+                        else:
+                            print("[VoiceAgent] No transcript generated from audio")
+                            # Send completion signal to reset frontend state
+                            await self.send_message("audio_complete", {
+                                "timestamp": time.time()
+                            })
+                    else:
+                        print("[VoiceAgent] Finalize received but no audio in buffer")
+                        # Send completion signal to reset frontend state
+                        await self.send_message("audio_complete", {
+                            "timestamp": time.time()
+                        })
+                
                 elif event == "close":
                     # Client requested close
                     break

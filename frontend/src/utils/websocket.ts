@@ -135,3 +135,21 @@ export function sendControl(ws: WebSocket, action: string): void {
   const message = { event: action };
   ws.send(JSON.stringify(message));
 }
+
+/**
+ * Send finalize message - signals backend to process buffered audio immediately
+ */
+export function sendFinalize(ws: WebSocket): void {
+  if (ws.readyState !== WebSocket.OPEN) {
+    console.error('[WS] Cannot send finalize - WebSocket not connected');
+    return;
+  }
+
+  const message = {
+    event: 'finalize',
+    timestamp: Date.now(),
+  };
+
+  console.log('[WS] Sending finalize - button released');
+  ws.send(JSON.stringify(message));
+}

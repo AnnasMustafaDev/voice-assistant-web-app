@@ -95,6 +95,24 @@ export function encodeWAV(
   return new Blob([data], { type: 'audio/wav' });
 }
 
+export function encodePCM(
+  samples: Float32Array,
+  bitDepth: number = 16
+): Blob {
+  const bytesPerSample = bitDepth / 8;
+  const data = new Uint8Array(samples.length * bytesPerSample);
+
+  let index = 0;
+  const volume = 0.8;
+  for (let i = 0; i < samples.length; i++) {
+    const sample = Math.max(-1, Math.min(1, samples[i])) * volume;
+    writeInt16LE(data, index, sample < 0 ? sample * 0x8000 : sample * 0x7fff);
+    index += 2;
+  }
+
+  return new Blob([data], { type: 'application/octet-stream' });
+}
+
 function writeString(view: Uint8Array, offset: number, string: string): void {
   for (let i = 0; i < string.length; i++) {
     view[offset + i] = string.charCodeAt(i);

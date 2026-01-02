@@ -53,8 +53,11 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
   const handleMouseUp = () => {
     if (!isPushDown) return;
     setIsPushDown(false);
-    onForceFinalize?.();
-    onStopListen();
+    // Use a small timeout to prevent double-firing from mouseleave/mouseup race
+    setTimeout(() => {
+      onForceFinalize?.();
+      onStopListen();
+    }, 0);
   };
 
   const handleTouchStart = () => handleMouseDown();

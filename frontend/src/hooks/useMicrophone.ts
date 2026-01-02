@@ -1,21 +1,20 @@
 /**
- * Hook for microphone input with client-side VAD (Voice Activity Detection)
- * - Buffers audio chunks until silence detected
- * - Sends complete utterances (not streaming chunks)
- * - Prevents STT rate limiting
+ * Hook for microphone input with real-time audio streaming
+ * - Streams audio chunks to backend immediately as they're captured
+ * - Backend handles VAD and silence detection
+ * - Button release triggers finalize on backend
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAgentStore } from '../store/agentStore';
-import { encodeWAV, resampleAudio } from '../utils/audio';
+import { encodeWAV, encodePCM, resampleAudio } from '../utils/audio';
 import { stopAudio } from '../utils/audio';
 
 const CHUNK_MS = 20;
-const SILENCE_THRESHOLD = 0.01; // RMS threshold for silence
-const END_SILENCE_MS = 700; // 700ms of silence to end utterance
 const TARGET_SAMPLE_RATE = 16000;
 
 interface UseMicrophoneOptions {
+  onAudioChunk?: (base64AudioData: string) => void;
   onUtterance?: (base64WavData: string, durationMs: number) => void;
 }
 
@@ -25,16 +24,15 @@ interface AudioBuffer {
   startTime: number;
 }
 
-export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
+export function useMicrophone({ onAudioChunk, onUtterance }: UseMicrophoneOptions = {}) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // VAD state
-  const isSpeakingRef = useRef(false);
-  const silenceDurationRef = useRef(0);
+  // Track if we're currently recording
+  const isRecordingRef = useRef(false);
   const bufferRef = useRef<AudioBuffer>({
     chunks: [],
     totalSamples: 0,
@@ -88,8 +86,6 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
 
     // Reset buffer
     bufferRef.current = { chunks: [], totalSamples: 0, startTime: 0 };
-    isSpeakingRef.current = false;
-    silenceDurationRef.current = 0;
   }, [onUtterance]);
 
   const startMicrophone = useCallback(async () => {
@@ -104,6 +100,7 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
 
       mediaStreamRef.current = stream;
       setIsMicrophoneActive(true);
+      isRecordingRef.current = true;
 
       // Create audio context
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -114,47 +111,48 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
       analyser.fftSize = 256;
       analyserRef.current = analyser;
 
-      // Create script processor (smaller buffer for lower latency)
-      // 2048 samples at 44.1kHz = ~46ms, at 16kHz = ~128ms
+      // Create script processor for streaming audio chunks
       const processor = audioContext.createScriptProcessor(2048, 1, 1);
       processorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
+        if (!isRecordingRef.current) return;
+
         const inputData = e.inputBuffer.getChannelData(0);
 
-        // Calculate RMS energy
+        // Calculate RMS energy for visualization
         let sum = 0;
         for (let i = 0; i < inputData.length; i++) {
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-
-        // Update amplitude visualization
         setMicrophoneAmplitude(rms);
 
-        // VAD logic
-        if (rms > SILENCE_THRESHOLD) {
-          // Speech detected
-          silenceDurationRef.current = 0;
-          if (!isSpeakingRef.current) {
-            console.log('[Mic] Speech started');
-            isSpeakingRef.current = true;
-            stopAudio();
-            bufferRef.current.startTime = Date.now();
-          }
-          // Buffer the audio chunk
-          bufferRef.current.chunks.push(new Float32Array(inputData));
-          bufferRef.current.totalSamples += inputData.length;
-        } else if (isSpeakingRef.current) {
-          // Silence detected after speech
-          silenceDurationRef.current += CHUNK_MS;
-          // Keep buffering for a bit (in case of pauses)
-          bufferRef.current.chunks.push(new Float32Array(inputData));
-          bufferRef.current.totalSamples += inputData.length;
+        // Always buffer chunks while recording
+        bufferRef.current.chunks.push(new Float32Array(inputData));
+        bufferRef.current.totalSamples += inputData.length;
 
-          if (silenceDurationRef.current >= END_SILENCE_MS) {
-            console.log('[Mic] Silence detected - finalizing utterance');
-            finializeUtterance();
+        // Stream audio chunk to backend in real-time
+        if (onAudioChunk) {
+          try {
+            // Resample to 16kHz if needed
+            let chunkSamples = new Float32Array(inputData);
+            if (audioContext.sampleRate !== TARGET_SAMPLE_RATE) {
+              chunkSamples = resampleAudio(chunkSamples, audioContext.sampleRate, TARGET_SAMPLE_RATE);
+            }
+
+            // Encode chunk as PCM (no header)
+            const blob = encodePCM(chunkSamples, 16);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === 'string') {
+                const base64 = reader.result.split(',')[1];
+                onAudioChunk(base64);
+              }
+            };
+            reader.readAsDataURL(blob);
+          } catch (err) {
+            console.error('[Mic] Error encoding chunk:', err);
           }
         }
       };
@@ -168,13 +166,11 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
       console.error('[Mic] Failed to access microphone:', error);
       useAgentStore.getState().setError('Microphone access denied');
     }
-  }, [setMicrophoneAmplitude, setIsMicrophoneActive, finializeUtterance]);
+  }, [setMicrophoneAmplitude, setIsMicrophoneActive, onAudioChunk]);
 
   const stopMicrophone = useCallback(() => {
-    // Finalize any pending utterance
-    if (isSpeakingRef.current && bufferRef.current.chunks.length > 0) {
-      finializeUtterance();
-    }
+    console.log('[Mic] Stopping microphone');
+    isRecordingRef.current = false;
 
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -192,21 +188,20 @@ export function useMicrophone({ onUtterance }: UseMicrophoneOptions = {}) {
     }
 
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      audioContextRef.current.close().catch(err => console.error('[Mic] Error closing audio context:', err));
       audioContextRef.current = null;
     }
 
     setIsInitialized(false);
     setIsMicrophoneActive(false);
     setMicrophoneAmplitude(0);
-  }, [setMicrophoneAmplitude, setIsMicrophoneActive, finializeUtterance]);
+  }, [setMicrophoneAmplitude, setIsMicrophoneActive]);
 
   const forceFinalize = useCallback(() => {
-    if (isSpeakingRef.current) {
-      console.log('[Mic] Force finalizing utterance');
-      finializeUtterance();
-    }
-  }, [finializeUtterance]);
+    console.log('[Mic] Force finalizing utterance');
+    isRecordingRef.current = false;
+    stopMicrophone();
+  }, [stopMicrophone]);
 
   useEffect(() => {
     return () => {

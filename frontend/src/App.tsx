@@ -54,7 +54,7 @@ function App() {
     agentId: AGENT_ID,
   });
 
-  const { isConnected: wsConnected, sendAudio } = useWebSocket({
+  const { isConnected: wsConnected, sendAudio, sendFinalizeSignal } = useWebSocket({
     url: `${BACKEND_URL.replace('http', 'ws')}/ws/voice`,
     config: wsConfigRef.current,
     onConnect: useCallback(() => {
@@ -95,8 +95,20 @@ function App() {
     }
   }, [wsConnected, sendAudio, setIsListening, agentState, setAgentState, setError]);
 
+  // Handle audio chunks from microphone (stream to backend)
+  const handleAudioChunk = useCallback((base64AudioData: string) => {
+    if (!wsConnected || !micActiveRef.current) return;
+    
+    try {
+      sendAudio(base64AudioData);
+    } catch (err) {
+      console.error('[App] Failed to send audio chunk:', err);
+    }
+  }, [wsConnected, sendAudio]);
+
   // Microphone hook - ONLY operates during listening state
   const { startMicrophone, stopMicrophone, forceFinalize } = useMicrophone({
+    onAudioChunk: handleAudioChunk,
     onUtterance: handleUtterance
   });
 
@@ -145,10 +157,16 @@ function App() {
 
   // Stop listening (release button)
   const handleStopListen = useCallback(() => {
-    console.log('[App] User released button - finalizing utterance');
+    console.log('[App] User released button - finalizing utterance and sending finalize signal');
     forceFinalize();
-    // Don't call stopMicrophone() yet - let VAD finalize first
-  }, [forceFinalize]);
+    
+    // Update state immediately
+    setIsListening(false);
+    setAgentState('thinking');
+
+    // Send finalize signal to backend to process buffered audio immediately
+    sendFinalizeSignal();
+  }, [forceFinalize, sendFinalizeSignal, setIsListening, setAgentState]);
 
   const handleInterrupt = useCallback(async () => {
     console.log('[App] INTERRUPT - Stopping everything');

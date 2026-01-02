@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '../store/agentStore';
-import { handleWebSocketMessage, sendInit, sendAudioChunk } from '../utils/websocket';
+import { handleWebSocketMessage, sendInit, sendAudioChunk, sendFinalize } from '../utils/websocket';
 
 interface UseWebSocketOptions {
   url: string;
@@ -122,6 +122,14 @@ export function useWebSocket({
     []
   );
 
+  const sendFinalizeSignal = useCallback(() => {
+    if (wsRef.current) {
+      sendFinalize(wsRef.current);
+      return true;
+    }
+    return false;
+  }, []);
+
   const disconnect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -143,6 +151,7 @@ export function useWebSocket({
     connect,
     disconnect,
     sendAudio,
+    sendFinalizeSignal,
     isConnected: useAgentStore((state) => state.isConnected),
   };
 }
