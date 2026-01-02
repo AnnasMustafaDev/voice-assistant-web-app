@@ -54,8 +54,8 @@ function App() {
     agentId: AGENT_ID,
   });
 
-  const { sendUtterance, isConnected: wsConnected } = useWebSocket({
-    url: `${BACKEND_URL.replace('http', 'ws')}/voice/stream`,
+  const { isConnected: wsConnected, sendAudio } = useWebSocket({
+    url: `${BACKEND_URL.replace('http', 'ws')}/ws/voice`,
     config: wsConfigRef.current,
     onConnect: useCallback(() => {
       console.log('[App] WebSocket connected');
@@ -84,16 +84,16 @@ function App() {
     micActiveRef.current = false;
     
     try {
-      sendUtterance(base64WavData, durationMs);
+      sendAudio(base64WavData);
       setIsListening(false);
       if (agentState === 'listening') {
         setAgentState('thinking');
       }
     } catch (err) {
-      console.error('[App] Failed to send utterance:', err);
+      console.error('[App] Failed to send audio:', err);
       setError('Failed to send audio');
     }
-  }, [wsConnected, sendUtterance, setIsListening, agentState, setAgentState, setError]);
+  }, [wsConnected, sendAudio, setIsListening, agentState, setAgentState, setError]);
 
   // Microphone hook - ONLY operates during listening state
   const { startMicrophone, stopMicrophone, forceFinalize } = useMicrophone({

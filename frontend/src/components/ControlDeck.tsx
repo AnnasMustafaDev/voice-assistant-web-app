@@ -23,10 +23,10 @@ export const ControlDeck: React.FC<ControlDeckProps> = ({
   onInterrupt,
   onClear,
 }) => {
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  // const [isChatOpen] = useState(false);
   const isConnected = useAgentStore((state) => state.isConnected);
   const error = useAgentStore((state) => state.error);
-  const transcript = useAgentStore((state) => state.transcript);
+  // const transcript = useAgentStore((state) => state.transcript);
   const [isPushDown, setIsPushDown] = useState(false);
 
   const glassButtonClass = `

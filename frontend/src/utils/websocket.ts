@@ -3,11 +3,9 @@
  * Protocol: Audio streaming with complete utterance detection
  */
 
-import type { ServerMessage, TranscriptItem } from '../types';
+import type { TranscriptItem } from '../types';
 import { useAgentStore } from '../store/agentStore';
 import { playAudio } from './audio';
-
-let lastMessageTimestamp = 0;
 
 export function handleWebSocketMessage(message: any): void {
   const { addTranscriptItem, setError, setAgentState } = useAgentStore.getState();
@@ -31,7 +29,7 @@ export function handleWebSocketMessage(message: any): void {
         };
         addTranscriptItem(item);
       }
-      setAgentState('processing');
+      setAgentState('thinking');
       break;
 
     case 'assistant_transcript':

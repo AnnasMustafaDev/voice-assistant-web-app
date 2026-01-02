@@ -194,7 +194,7 @@ const NeuralSphere: React.FC<NeuralSphereProps> = ({ state = 'idle' }) => {
 
 // --- COMPONENT: VoiceBubble (Wrapper) ---
 
-export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ isActive = false, onClick }) => {
+export const VoiceBubble: React.FC<VoiceBubbleProps> = ({ onClick }) => {
   const agentState = useAgentStore((state) => state.agentState);
 
   return (

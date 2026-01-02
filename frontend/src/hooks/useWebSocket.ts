@@ -1,6 +1,6 @@
 /**
  * Hook for WebSocket connection management
- * Protocol: Send complete utterances (not streaming chunks)
+ * Protocol: Audio streaming with complete utterance detection
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -110,75 +110,6 @@ export function useWebSocket({
     }
   }, [url, setIsConnected, setError, setAgentState]);
 
-  const sendUtterance = useCallback(
-    (base64WavData: string, durationMs: number) => {
-      if (wsRef.current) {
-        return sendAudioUtterance(wsRef.current, base64WavData, durationMs);
-      }
-      return false;
-    },
-    []
-  );
-
-  const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    connect();
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [connect]);
-
-  return {
-    connect,
-    disconnect,
-    sendUtterance,
-    isConnected: useAgentStore((state) => state.isConnected),
-  };
-}
-          if (message.event) {
-            handleWebSocketMessage(message);
-          }
-        } catch (error) {
-          console.error('[WS] Failed to parse message:', error);
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error('[WS] Error:', error);
-        setError('WebSocket connection error');
-      };
-
-      wsRef.current.onclose = () => {
-        console.log('[WS] Disconnected');
-        setIsConnected(false);
-        setAgentState('idle');
-        onDisconnectRef.current?.();
-
-        // Attempt reconnection
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          console.log(`[WS] Reconnecting in ${delay}ms...`);
-          setTimeout(connect, delay);
-        } else {
-          setError('Failed to connect to server after multiple attempts. Please refresh.');
-        }
-      };
-    } catch (error) {
-      console.error('[WS] Connection failed:', error);
-      setError('Failed to establish WebSocket connection');
-    }
-  }, [url, setIsConnected, setError, setAgentState]);
-
   const sendAudio = useCallback(
     (base64AudioData: string) => {
       if (wsRef.current) {
@@ -212,74 +143,6 @@ export function useWebSocket({
     connect,
     disconnect,
     sendAudio,
-    isConnected: useAgentStore((state) => state.isConnected),
-  };
-}          if (message.event) {
-            handleWebSocketMessage(message);
-          }
-        } catch (error) {
-          console.error('[WS] Failed to parse message:', error);
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error('[WS] Error:', error);
-        setError('WebSocket connection error');
-      };
-
-      wsRef.current.onclose = () => {
-        console.log('[WS] Disconnected');
-        setIsConnected(false);
-        setAgentState('idle');
-        onDisconnectRef.current?.();
-
-        // Attempt reconnection
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          console.log(`[WS] Reconnecting in ${delay}ms...`);
-          setTimeout(connect, delay);
-        } else {
-          setError('Failed to connect to server after multiple attempts. Please refresh.');
-        }
-      };
-    } catch (error) {
-      console.error('[WS] Connection failed:', error);
-      setError('Failed to establish WebSocket connection');
-    }
-  }, [url, setIsConnected, setError, setAgentState]);
-
-  const sendUtterance = useCallback(
-    (base64WavData: string, durationMs: number) => {
-      if (wsRef.current) {
-        return sendAudioUtterance(wsRef.current, base64WavData, durationMs);
-      }
-      return false;
-    },
-    []
-  );
-
-  const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    connect();
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [connect]);
-
-  return {
-    connect,
-    disconnect,
-    sendUtterance,
     isConnected: useAgentStore((state) => state.isConnected),
   };
 }
