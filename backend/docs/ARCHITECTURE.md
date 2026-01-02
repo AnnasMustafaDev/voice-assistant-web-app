@@ -92,7 +92,7 @@
    │ • Groq API                               │
    │   - STT: whisper-large-v3-turbo         │
    │   - LLM: llama-3.1-8b-instant           │
-   │   - TTS: playai-tts                     │
+   │   - TTS: canopylabs/orpheus-v1-english                     │
    └──────────────────────────────────────────┘
 ```
 

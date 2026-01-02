@@ -26,7 +26,7 @@ OUTPUT_AUDIO = "response.wav"
 
 STT_MODEL = "whisper-large-v3-turbo"
 LLM_MODEL = "llama-3.1-8b-instant"
-TTS_MODEL = "playai-tts"
+TTS_MODEL = "canopylabs/orpheus-v1-english"
 
 SYSTEM_PROMPT = """
 You are a professional AI receptionist.

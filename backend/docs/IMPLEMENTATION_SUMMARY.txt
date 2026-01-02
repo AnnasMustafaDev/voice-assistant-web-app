@@ -116,7 +116,7 @@ KEY FEATURES IMPLEMENTED
    ✅ Async Groq client wrapper
    ✅ STT: whisper-large-v3-turbo
    ✅ LLM: llama-3.1-8b-instant (streaming support)
-   ✅ TTS: playai-tts with voice customization
+   ✅ TTS: canopylabs/orpheus-v1-english with voice customization
    ✅ Error handling and logging
 
 7. DATABASE LAYER

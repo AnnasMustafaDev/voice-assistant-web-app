@@ -264,7 +264,7 @@
 - ✅ pgvector (vector search)
 - ✅ Groq STT (whisper-large-v3-turbo)
 - ✅ Groq LLM (llama-3.1-8b-instant)
-- ✅ Groq TTS (playai-tts)
+- ✅ Groq TTS (canopylabs/orpheus-v1-english)
 - ✅ REST API
 - ✅ WebSocket for voice streaming
 - ✅ Multi-tenant architecture
