@@ -1,100 +1,42 @@
-"""FastAPI application factory."""
+"""FastAPI application for AI voice receptionist."""
 
-import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import get_settings
-from app.core.logging import logger
-from app.db.session import init_db, close_db
-from app.ai.rag.cache import cleanup_cache_periodically
+from app.voice_agent import VoiceAgent
+from app.config import get_settings
 
 settings = get_settings()
 
+# Create FastAPI app
+app = FastAPI(
+    title="AI Voice Receptionist",
+    version="2.0.0",
+    description="Real-time AI voice receptionist backend",
+)
 
-# Startup and shutdown events
-async def startup_event():
-    """Application startup."""
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "ok", "version": "2.0.0"}
+
+
+@app.websocket("/ws/voice")
+async def websocket_voice_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time voice interaction."""
+    await websocket.accept()
     
-    # Initialize database
-    try:
-        await init_db()
-        logger.info("Database initialized")
-    except Exception as e:
-        logger.error(f"Database initialization error: {str(e)}")
+    # Create voice agent
+    agent = VoiceAgent(websocket)
     
-    # Start cache cleanup task
-    asyncio.create_task(cache_cleanup_loop())
-
-
-async def shutdown_event():
-    """Application shutdown."""
-    logger.info("Shutting down application")
-    await close_db()
-
-
-async def cache_cleanup_loop():
-    """Periodically clean up expired cache entries."""
-    while True:
-        try:
-            await asyncio.sleep(300)  # Every 5 minutes
-            await cleanup_cache_periodically()
-        except Exception as e:
-            logger.error(f"Cache cleanup error: {str(e)}")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
-    # Startup
-    await startup_event()
-    yield
-    # Shutdown
-    await shutdown_event()
-
-
-def create_app() -> FastAPI:
-    """Create and configure FastAPI application."""
-    
-    app = FastAPI(
-        title=settings.APP_NAME,
-        version=settings.APP_VERSION,
-        description="Multi-tenant AI Voice Agent Backend API",
-        docs_url="/docs",
-        openapi_url="/openapi.json",
-        lifespan=lifespan
-    )
-    
-    # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    
-    # Import and include routers
-    from app.api.routes import (
-        health,
-        tenants,
-        agents,
-        chat,
-        voice,
-        knowledge
-    )
-    
-    app.include_router(health.router)
-    app.include_router(tenants.router)
-    app.include_router(agents.router)
-    app.include_router(chat.router)
-    app.include_router(voice.router)
-    app.include_router(knowledge.router)
-    
-    logger.info(f"FastAPI application created with {len(app.routes)} routes")
-    
-    return app
-
-
-app = create_app()
+    # Run conversation loop
+    await agent.run()

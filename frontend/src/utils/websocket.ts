@@ -1,138 +1,103 @@
 /**
  * WebSocket message handlers and utilities
- * Protocol: Only send complete utterances, not streaming chunks
+ * Protocol: Audio streaming with complete utterance detection
  */
 
 import type { ServerMessage, TranscriptItem } from '../types';
 import { useAgentStore } from '../store/agentStore';
 import { playAudio } from './audio';
 
-const MAX_UTTERANCES_PER_MIN = 10;
-let utteranceTimestamps: number[] = [];
+let lastMessageTimestamp = 0;
 
-function checkRateLimit(): boolean {
-  const now = Date.now();
-  const oneMinuteAgo = now - 60000;
-
-  // Remove old timestamps
-  utteranceTimestamps = utteranceTimestamps.filter((ts) => ts > oneMinuteAgo);
-
-  if (utteranceTimestamps.length >= MAX_UTTERANCES_PER_MIN) {
-    console.warn('[WS] Rate limit: Too many utterances in the last minute');
-    return false;
-  }
-
-  utteranceTimestamps.push(now);
-  return true;
-}
-
-export function handleWebSocketMessage(message: ServerMessage): void {
+export function handleWebSocketMessage(message: any): void {
   const { addTranscriptItem, setError, setAgentState } = useAgentStore.getState();
+  const now = Date.now();
 
   switch (message.event) {
     case 'ready':
-      console.log('[WS] Server ready');
+      console.log('[WS] Server ready', message.conversation_id);
+      setAgentState('listening');
       break;
 
-    case 'transcript_partial':
-      // Handle partial transcript update
+    case 'user_transcript':
+      // User's speech was transcribed
       if (message.text) {
         const item: TranscriptItem = {
-          id: `transcript-${Date.now()}`,
+          id: `user-${message.timestamp || Date.now()}`,
           role: 'user',
           text: message.text,
-          timestamp: Date.now(),
-          isFinal: false,
-        };
-        addTranscriptItem(item);
-      }
-      break;
-
-    case 'transcript_final':
-      // Handle final transcript
-      if (message.text) {
-        const item: TranscriptItem = {
-          id: `transcript-${Date.now()}`,
-          role: 'user',
-          text: message.text,
-          timestamp: Date.now(),
+          timestamp: now,
           isFinal: true,
         };
         addTranscriptItem(item);
       }
+      setAgentState('processing');
       break;
 
-    case 'audio_response':
-      // Handle agent audio response
-      setAgentState('speaking');
-      if (message.data) {
-        playAudio(message.data)
-          .then(() => {
-            setAgentState('idle');
-          })
-          .catch((err) => {
-            console.error('[WS] Audio playback error:', err);
-            setAgentState('idle');
-          });
-      } else if (message.text) {
-        // Agent sent a text response
+    case 'assistant_transcript':
+      // Assistant's response text
+      if (message.text) {
         const item: TranscriptItem = {
-          id: `agent-${Date.now()}`,
+          id: `assistant-${message.timestamp || Date.now()}`,
           role: 'agent',
           text: message.text,
-          timestamp: Date.now(),
+          timestamp: now,
           isFinal: true,
         };
         addTranscriptItem(item);
-        setAgentState('idle');
       }
+      break;
+
+    case 'audio':
+      // Audio chunk - play it
+      setAgentState('speaking');
+      if (message.audio) {
+        playAudio(message.audio)
+          .catch((err) => {
+            console.error('[WS] Audio playback error:', err);
+          });
+      }
+      break;
+
+    case 'audio_complete':
+      // All audio has been sent
+      console.log('[WS] Audio complete');
+      setAgentState('listening');
       break;
 
     case 'error':
-      const errorMsg = message.message || message.error || 'Unknown error occurred';
+      const errorMsg = message.message || 'Unknown error occurred';
       console.error('[WS] Server error:', errorMsg);
       setError(errorMsg);
       setAgentState('error');
-
-      // Handle rate limiting specifically
-      if (message.code === 429 || errorMsg.includes('rate')) {
-        console.warn('[WS] Rate limited - waiting before retrying');
-      }
       break;
 
     default:
-      const _exhaustive: never = message;
-      console.warn('[WS] Unknown message type:', _exhaustive);
+      console.log('[WS] Message event:', message.event);
   }
 }
 
 /**
- * Send audio utterance (not streaming chunks!)
+ * Send audio chunk with latency measurement
  */
-export function sendAudioUtterance(
+export function sendAudioChunk(
   ws: WebSocket,
-  base64WavData: string,
-  durationMs: number
+  base64AudioData: string,
+  latencyMs: number = 0
 ): boolean {
   if (ws.readyState !== WebSocket.OPEN) {
     console.error('[WS] WebSocket not connected');
     return false;
   }
 
-  if (!checkRateLimit()) {
-    useAgentStore.getState().setError('Rate limited: Max 10 utterances per minute');
-    return false;
-  }
-
   const message = {
-    type: 'audio_utterance',
-    audio: base64WavData,
-    duration_ms: durationMs,
+    event: 'audio',
+    audio: base64AudioData,
+    latency_ms: latencyMs,
   };
 
-  console.log('[WS] Sending utterance', { durationMs });
+  console.log('[WS] Sending audio chunk', { latencyMs });
   ws.send(JSON.stringify(message));
-  useAgentStore.getState().setAgentState('thinking');
   return true;
 }
 
@@ -151,11 +116,10 @@ export function sendInit(
   }
 
   const message = {
-    type: 'init',
+    event: 'init',
     tenant_id: tenantId,
     agent_id: agentId,
     language: language,
-    conversation_id: `conv-${Date.now()}`,
   };
 
   console.log('[WS] Sending init');
@@ -165,11 +129,11 @@ export function sendInit(
 /**
  * Send control message
  */
-export function sendControl(ws: WebSocket, action: 'start_listening' | 'stop_listening'): void {
+export function sendControl(ws: WebSocket, action: string): void {
   if (ws.readyState !== WebSocket.OPEN) {
     return;
   }
 
-  const message = { type: action };
+  const message = { event: action };
   ws.send(JSON.stringify(message));
 }

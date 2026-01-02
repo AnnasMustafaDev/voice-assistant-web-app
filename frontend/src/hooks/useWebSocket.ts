@@ -5,13 +5,12 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '../store/agentStore';
-import { handleWebSocketMessage, sendInit, sendAudioUtterance } from '../utils/websocket';
+import { handleWebSocketMessage, sendInit, sendAudioChunk } from '../utils/websocket';
 
 interface UseWebSocketOptions {
   url: string;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  onUtterance?: (base64WavData: string, durationMs: number) => void;
   config?: {
     tenantId: string;
     agentId: string;
@@ -23,26 +22,24 @@ export function useWebSocket({
   url,
   onConnect,
   onDisconnect,
-  onUtterance,
   config,
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const { setIsConnected, setError, setAgentState } = useAgentStore();
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
+  const latencyTrackingRef = useRef<number>(Date.now());
 
   // Store callbacks in refs to prevent unnecessary reconnections
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
-  const onUtteranceRef = useRef(onUtterance);
   const configRef = useRef(config);
 
   useEffect(() => {
     onConnectRef.current = onConnect;
     onDisconnectRef.current = onDisconnect;
-    onUtteranceRef.current = onUtterance;
     configRef.current = config;
-  }, [onConnect, onDisconnect, onUtterance, config]);
+  }, [onConnect, onDisconnect, config]);
 
   const connect = useCallback(() => {
     try {
@@ -79,6 +76,145 @@ export function useWebSocket({
           const message = JSON.parse(event.data) as any;
           // Only pass server messages to the handler (they have 'event' property)
           if (message.event) {
+            handleWebSocketMessage(message);
+          }
+        } catch (error) {
+          console.error('[WS] Failed to parse message:', error);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('[WS] Error:', error);
+        setError('WebSocket connection error');
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('[WS] Disconnected');
+        setIsConnected(false);
+        setAgentState('idle');
+        onDisconnectRef.current?.();
+
+        // Attempt reconnection
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          console.log(`[WS] Reconnecting in ${delay}ms...`);
+          setTimeout(connect, delay);
+        } else {
+          setError('Failed to connect to server after multiple attempts. Please refresh.');
+        }
+      };
+    } catch (error) {
+      console.error('[WS] Connection failed:', error);
+      setError('Failed to establish WebSocket connection');
+    }
+  }, [url, setIsConnected, setError, setAgentState]);
+
+  const sendUtterance = useCallback(
+    (base64WavData: string, durationMs: number) => {
+      if (wsRef.current) {
+        return sendAudioUtterance(wsRef.current, base64WavData, durationMs);
+      }
+      return false;
+    },
+    []
+  );
+
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [connect]);
+
+  return {
+    connect,
+    disconnect,
+    sendUtterance,
+    isConnected: useAgentStore((state) => state.isConnected),
+  };
+}
+          if (message.event) {
+            handleWebSocketMessage(message);
+          }
+        } catch (error) {
+          console.error('[WS] Failed to parse message:', error);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('[WS] Error:', error);
+        setError('WebSocket connection error');
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('[WS] Disconnected');
+        setIsConnected(false);
+        setAgentState('idle');
+        onDisconnectRef.current?.();
+
+        // Attempt reconnection
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          console.log(`[WS] Reconnecting in ${delay}ms...`);
+          setTimeout(connect, delay);
+        } else {
+          setError('Failed to connect to server after multiple attempts. Please refresh.');
+        }
+      };
+    } catch (error) {
+      console.error('[WS] Connection failed:', error);
+      setError('Failed to establish WebSocket connection');
+    }
+  }, [url, setIsConnected, setError, setAgentState]);
+
+  const sendAudio = useCallback(
+    (base64AudioData: string) => {
+      if (wsRef.current) {
+        const latencyMs = Date.now() - latencyTrackingRef.current;
+        latencyTrackingRef.current = Date.now();
+        return sendAudioChunk(wsRef.current, base64AudioData, latencyMs);
+      }
+      return false;
+    },
+    []
+  );
+
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [connect]);
+
+  return {
+    connect,
+    disconnect,
+    sendAudio,
+    isConnected: useAgentStore((state) => state.isConnected),
+  };
+}          if (message.event) {
             handleWebSocketMessage(message);
           }
         } catch (error) {

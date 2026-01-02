@@ -1,0 +1,49 @@
+{
+  "name": "Demo Restaurant",
+  "location": "123 Main Street, Downtown",
+  "phone": "555-123-4567",
+  "hours": {
+    "monday": "9am-10pm",
+    "tuesday": "9am-10pm",
+    "wednesday": "9am-10pm",
+    "thursday": "9am-10pm",
+    "friday": "9am-11pm",
+    "saturday": "10am-11pm",
+    "sunday": "10am-9pm"
+  },
+  "pricing": {
+    "burger": 12,
+    "pizza": 15,
+    "salad": 8,
+    "drink": 3,
+    "dessert": 6
+  },
+  "menu": [
+    {
+      "name": "burger",
+      "description": "Classic cheeseburger",
+      "price": 12
+    },
+    {
+      "name": "pizza",
+      "description": "Margherita pizza",
+      "price": 15
+    },
+    {
+      "name": "salad",
+      "description": "Garden salad with house dressing",
+      "price": 8
+    },
+    {
+      "name": "drink",
+      "description": "Soda or water",
+      "price": 3
+    },
+    {
+      "name": "dessert",
+      "description": "Chocolate cake",
+      "price": 6
+    }
+  ],
+  "orders": []
+}
