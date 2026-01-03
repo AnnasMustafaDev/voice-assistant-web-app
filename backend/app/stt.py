@@ -77,7 +77,7 @@ class DeepgramSTT:
                 print(f"Failed to save debug audio: {e}")
 
             response = self.client.listen.v1.media.transcribe_file(
-                {"buffer": wav_data},
+                request=wav_data,
                 model="nova-2",
                 language="en",
                 smart_format=True,
