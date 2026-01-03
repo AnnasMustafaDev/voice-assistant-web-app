@@ -1,10 +1,8 @@
 """Deepgram STT integration."""
 
-import json
-import base64
 import struct
 from typing import AsyncGenerator
-from deepgram import DeepgramClient, PrerecordedOptions, LiveOptions
+from deepgram import DeepgramClient
 from app.config import get_settings
 
 settings = get_settings()
@@ -46,41 +44,12 @@ class DeepgramSTT:
         """
         Transcribe audio stream in real-time.
         
-        Args:
-            audio_stream: Async generator yielding audio chunks (PCM, 16kHz, mono, 16-bit)
-            
-        Yields:
-            Transcript chunks as they become available
+        Note: The current Deepgram SDK version in use only exposes the v1
+        websocket client (`listen.v1.connect`). This method is left
+        unimplemented because the application path currently uses the
+        prerecorded flow; implement streaming as needed.
         """
-        try:
-            options = LiveOptions(
-                model="nova-2",
-                language="en",
-                interim_results=True,
-            )
-            
-            with self.client.listen.live(options) as dg_connection:
-                # Send audio chunks
-                async for audio_chunk in audio_stream:
-                    dg_connection.send(audio_chunk)
-                
-                dg_connection.finish()
-                
-                # Yield results
-                for event in dg_connection.get_new_message():
-                    if event.get("type") == "Results":
-                        for result in event.get("results", []):
-                            if result.get("is_final"):
-                                transcript = ""
-                                for alt in result.get("alternatives", []):
-                                    transcript = alt.get("transcript", "")
-                                    break
-                                if transcript:
-                                    yield transcript
-        
-        except Exception as e:
-            print(f"Deepgram error: {e}")
-            raise
+        raise NotImplementedError("Streaming STT not implemented for current SDK version")
     
     async def transcribe_audio(self, audio_data: bytes) -> str:
         """
@@ -107,20 +76,27 @@ class DeepgramSTT:
             except Exception as e:
                 print(f"Failed to save debug audio: {e}")
 
-            options = PrerecordedOptions(
+            response = self.client.listen.v1.media.transcribe_file(
+                {"buffer": wav_data},
                 model="nova-2",
                 language="en",
+                smart_format=True,
             )
-            
-            response = self.client.listen.prerecorded.v("1").transcribe_file(
-                {"buffer": wav_data, "mimetype": "audio/wav"},
-                options
-            )
-            
+
+            # Extract transcript, with debug logging if empty
             transcript = ""
-            for result in response.results.channels[0].alternatives:
-                transcript = result.transcript
-                break
+            try:
+                for result in response.results.channels[0].alternatives:
+                    transcript = result.transcript
+                    break
+            except Exception as parse_err:
+                print(f"Deepgram parse error: {parse_err}; raw response: {response}")
+                raise
+
+            if not transcript:
+                print(f"Deepgram returned no transcript. Metadata: {getattr(response, 'metadata', None)}")
+                if hasattr(response, 'results'):
+                    print(f"Deepgram results: {response.results}")
             
             return transcript
         

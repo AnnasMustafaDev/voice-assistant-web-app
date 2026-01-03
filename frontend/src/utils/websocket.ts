@@ -52,6 +52,7 @@ export function handleWebSocketMessage(message: any): void {
       if (message.audio) {
         playAudio(message.audio)
           .catch((err) => {
+            if (err.name === 'AbortError') return;
             console.error('[WS] Audio playback error:', err);
           });
       }

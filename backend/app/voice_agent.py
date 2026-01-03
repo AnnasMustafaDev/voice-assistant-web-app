@@ -97,7 +97,9 @@ class VoiceAgent:
         # Get LLM response with tool calling
         start_time = time.time()
         response_text = await self.llm.chat_with_tools(messages)
+        
         llm_latency_ms = (time.time() - start_time) * 1000
+        print(f"[LOGS] LLM Response: {response_text} (Latency: {llm_latency_ms:.2f}ms)")
         
         # Add assistant response to history
         if response_text:

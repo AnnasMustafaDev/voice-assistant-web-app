@@ -195,36 +195,52 @@ def get_tools_schema() -> list[dict]:
     
     for tool in TOOLS.values():
         tool_schema = {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
             }
         }
         
         for param in tool.parameters:
-            tool_schema["parameters"]["properties"][param.name] = {
-                "type": param.type,
+            param_type = param.type
+            # Normalize type names for better compatibility
+            if param_type == "number":
+                param_type = "integer"
+            
+            tool_schema["function"]["parameters"]["properties"][param.name] = {
+                "type": param_type,
                 "description": param.description
             }
             if param.required:
-                tool_schema["parameters"]["required"].append(param.name)
+                tool_schema["function"]["parameters"]["required"].append(param.name)
         
         schema.append(tool_schema)
     
     return schema
 
 
-async def execute_tool(tool_name: str, **kwargs) -> Any:
-    """Execute a tool."""
+async def execute_tool(tool_name: str, *args, **kwargs) -> Any:
+    """Execute a tool with positional or keyword arguments."""
     if tool_name not in TOOLS:
         return {"error": f"Unknown tool: {tool_name}"}
     
     tool = TOOLS[tool_name]
     
     try:
-        return tool.func(**kwargs)
+        # If positional args provided, map them to parameter names
+        if args:
+            param_names = [p.name for p in tool.parameters]
+            for i, arg in enumerate(args):
+                if i < len(param_names):
+                    kwargs[param_names[i]] = arg
+            return tool.func(**kwargs)
+        else:
+            return tool.func(**kwargs)
     except Exception as e:
         return {"error": str(e)}

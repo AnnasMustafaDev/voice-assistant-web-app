@@ -1,8 +1,7 @@
-"""Text-to-speech integration."""
+"""Text-to-speech integration using Deepgram Aura."""
 
-import io
-from typing import Optional
-from groq import Groq
+from typing import AsyncGenerator
+from deepgram import DeepgramClient
 from app.config import get_settings
 
 settings = get_settings()
@@ -13,7 +12,7 @@ class TTS:
     
     def __init__(self):
         """Initialize TTS client."""
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
+        self.client = DeepgramClient(api_key=settings.DEEPGRAM_API_KEY)
     
     async def synthesize(self, text: str) -> bytes:
         """
@@ -26,18 +25,20 @@ class TTS:
             Audio bytes (MP3 format)
         """
         try:
-            with self.client.audio.speech.with_raw_response.create(
-                model="distil-whisper-large-v3-en",
-                voice="playai-helena-en",
+            # Deepgram SDK v3+ uses speak.v1.audio.generate which returns a generator of bytes
+            chunks = self.client.speak.v1.audio.generate(
                 text=text,
-            ) as response:
-                return response.content
+                model="aura-asteria-en",
+                encoding="mp3",
+            )
+            audio_bytes = b"".join(chunks)
+            return audio_bytes
         
         except Exception as e:
             print(f"TTS error: {e}")
             raise
     
-    async def synthesize_stream(self, text: str):
+    async def synthesize_stream(self, text: str) -> AsyncGenerator[bytes, None]:
         """
         Synthesize text to speech with streaming.
         
@@ -48,13 +49,13 @@ class TTS:
             Audio chunks (MP3 format)
         """
         try:
-            with self.client.audio.speech.with_raw_response.create(
-                model="distil-whisper-large-v3-en",
-                voice="playai-helena-en",
+            chunks = self.client.speak.v1.audio.generate(
                 text=text,
-            ) as response:
-                for chunk in response.iter_bytes(chunk_size=1024):
-                    yield chunk
+                model="aura-asteria-en",
+                encoding="mp3",
+            )
+            for chunk in chunks:
+                yield chunk
         
         except Exception as e:
             print(f"TTS error: {e}")

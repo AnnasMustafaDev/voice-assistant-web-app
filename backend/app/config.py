@@ -15,8 +15,8 @@ class Settings:
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "")
     
-    # LLM Config
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "mixtral-8x7b-32768")  # Groq model
+    # LLM Config (Groq) - default to an active model
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 500
     
